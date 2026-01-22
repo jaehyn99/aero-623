@@ -1,7 +1,7 @@
 #ifndef CONSTRAINED_OPTIMIZER_H
 #define CONSTRAINED_OPTIMIZER_H
 
-#include "Eigen/Dense"
+#include <Eigen/Dense>
 #include "Derivative.h"
 #include <functional>
 #include <type_traits>

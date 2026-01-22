@@ -1,7 +1,7 @@
 #ifndef QUADRATURE_H
 #define QUADRATURE_H
 
-#include "Eigen/Dense"
+#include <Eigen/Dense>
 #include <functional>
 #include <variant>
 #include <vector>
