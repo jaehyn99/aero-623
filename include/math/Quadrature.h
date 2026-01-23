@@ -28,13 +28,11 @@ class Quadrature{
         if (N != Eigen::Dynamic && D.size() != N*2) return false; // the exact number of bounds is N*2 for fixed-size domains
         // First pair of bounds has to be constant
         if (!std::get_if<double>(&D[0]) || !std::get_if<double>(&D[1])) return false;
-        // Second pair of bounds has to be constant or 1D function
-        if (D.size() > 2){
-            if (std::get_if<IFuncMD>(&D[2]) || std::get_if<IFuncMD>(&D[3])) return false;
-        }
-        // All bounds from then on have to be constant or MD function
-        for (std::size_t i = 4; i < D.size(); i++){
-            if (std::get_if<IFunc1D>(&D[i])) return false;            
+        // Second pair of bounds has to be constant or 1D function. All bounds from then on have to be constant or MD function
+        for (std::size_t i = 2; i < D.size(); i++){
+            if (i == 2 || i == 3){
+                if (std::get_if<IFuncMD>(&D[i])) return false;
+            } else if (std::get_if<IFunc1D>(&D[i])) return false;            
         }
         return true;
     }
