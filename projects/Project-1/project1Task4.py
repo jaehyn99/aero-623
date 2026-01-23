@@ -11,29 +11,21 @@ from scipy.optimize import fsolve
 import matplotlib.pyplot as plt
 
 #%% 2D Spline
-
 def tridiag(A, B, C, D):
-    n = np.size(A)
-
-    CP = np.zeros(n-1)
-    DP = np.zeros(n)
-    x  = np.zeros(n)
-
-    CP[0] = C[0] / A[0]
-    DP[0] = D[0] / A[0]
-
-    for i in range(1, n-1):
-        denom = A[i] - B[i-1] * CP[i-1]
-        CP[i] = C[i] / denom
-        DP[i] = (D[i] - B[i-1] * DP[i-1]) / denom
-
-    denom = A[n-1] - B[n-2] * CP[n-2]
-    DP[n-1] = (D[n-1] - B[n-2] * DP[n-2]) / denom
-
-    x[n-1] = DP[n-1]
-    for i in range(n-2, -1, -1):
-        x[i] = DP[i] - CP[i] * x[i+1]
-
+    CP = np.zeros(np.size(C))
+    DP = np.zeros(np.size(D))
+    x = np.zeros(np.size(D))
+    CP[0] = C[0]/A[0]
+    DP[0] = D[0]/A[0]
+    for ii in range(1, np.size(CP)):
+        CP[ii] = C[ii]/(A[ii] - B[ii]*CP[ii - 1])
+        DP[ii] = (D[ii] - B[ii]*DP[ii - 1])/(A[ii] - B[ii]*CP[ii - 1])
+    
+    DP[-1] = (D[-1] - B[-1]*DP[-2])/(A[-1] - B[-1]*CP[-2])
+    x[-1] = DP[-1]
+    for ii in range(2, np.size(x) + 1):
+        x[-ii] = DP[-ii] - CP[-ii + 1]*x[-ii + 1]
+        
     return x
 
 def splineFit(X, S):
@@ -45,22 +37,22 @@ def splineFit(X, S):
     DS = np.zeros(np.size(S) - 1)
     for ii in range(np.size(DS)):
         DS[ii] = S[ii + 1] - S[ii]
-
+        
     A[0] = 2*DS[0]
     C[0] = DS[0]
     D[0] = 3*(X[1] - X[0])
     for ii in range(1, np.size(A) - 1):
         B[ii - 1] = DS[ii - 1]
         A[ii] = 2*(DS[ii - 1] + DS[ii])
-        C[ii] = DS[ii]
+        C[ii] = DS[ii - 1]
         D[ii] = 3*((X[ii] - X[ii - 1])/DS[ii - 1]*DS[ii] + (X[ii + 1] - X[ii])/DS[ii]*DS[ii - 1])
-
+        
     B[-1] = DS[-1]
     A[-1] = 2*DS[-1]
     D[-1] = 3*(X[-1] - X[-2])
     dX = tridiag(A, B, C, D)
-
-    return dX
+    
+    return dX 
 
 def splineFun(s, Xi, Si, dXi):
     lo, hi = 0, len(Si)
