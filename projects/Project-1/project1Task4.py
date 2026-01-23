@@ -45,22 +45,22 @@ def splineFit(X, S):
     DS = np.zeros(np.size(S) - 1)
     for ii in range(np.size(DS)):
         DS[ii] = S[ii + 1] - S[ii]
-        
+
     A[0] = 2*DS[0]
     C[0] = DS[0]
     D[0] = 3*(X[1] - X[0])
     for ii in range(1, np.size(A) - 1):
-        B[ii - 1] = DS[ii]
+        B[ii - 1] = DS[ii - 1]
         A[ii] = 2*(DS[ii - 1] + DS[ii])
-        C[ii] = DS[ii - 1]
+        C[ii] = DS[ii]
         D[ii] = 3*((X[ii] - X[ii - 1])/DS[ii - 1]*DS[ii] + (X[ii + 1] - X[ii])/DS[ii]*DS[ii - 1])
-        
-    B[-1] = DS[-2]
-    A[-1] = 2*DS[-2]
+
+    B[-1] = DS[-1]
+    A[-1] = 2*DS[-1]
     D[-1] = 3*(X[-1] - X[-2])
     dX = tridiag(A, B, C, D)
-    
-    return dX 
+
+    return dX
 
 def splineFun(s, Xi, Si, dXi):
     lo, hi = 0, len(Si)
