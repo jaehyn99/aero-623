@@ -2,6 +2,8 @@
  * Using adaptive Gauss-Kronrod Quadrature to evaluate the integral of f(x) over a finite domain.
 **/
 
+
+/* 
 #ifndef GAUSS_KRONROD_H
 #define GAUSS_KRONROD_H
 
@@ -174,3 +176,4 @@ class GaussKronrod : public GaussianQuadrature<N, M>, GaussKronrodBase{
 };
 
 #endif
+*/
