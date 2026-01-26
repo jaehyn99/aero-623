@@ -1,4 +1,3 @@
-// #include "../../include/ReadGRI.h"
 #include "../include/ReadGRI.h"
 #include <fstream>
 #include <sstream>
@@ -9,53 +8,85 @@ GRIData readGriFile(const std::string& filename) {
     std::ifstream file(filename);
     if (!file) throw std::runtime_error("Could not open file " + filename);
 
-    Map gridMap;
+    GRIData data;
 
-    file >> gridMap.nNode >> gridMap.nElemTot >> gridMap.Dim;
+    file >> data.map.nNode >> data.map.nElemGroup >> data.map.Dim;
 
     // Saves node coordinates
-    std::vector<double> point;
-    for (int i=0;i<gridMap.nNode;i++){
+    data.map.nodeXYZ.reserve(data.map.nNode);
+    for (int i=0;i<data.map.nNode;i++){
         double x, y, z = 0.0;
         file >> x >> y;
-        if (gridMap.Dim == 3) {
+        if (data.map.Dim == 3) {
             file >> z;
         }
-        point = {x, y, z};
-        gridMap.nodeXYZ.push_back(point);
+        data.map.nodeXYZ.emplace_back(std::vector<double>{x, y, z});
     }
 
     // Saving boundary data
-    file >> gridMap.nBGroup;
-    int nBFace, nf;
-    std::string title;
-    std::vector<int> nb;
-    int nbTemp;
-    BoundaryGroup boundary;
-    for (int i=0;i<gridMap.nBGroup;i++) {
-        file >> nBFace >> nf >> title;
-        // std::string line;
-        // if (std::getline(file, line)) {  // Read one line from file
-        //     std::istringstream iss(line); // Use stringstream to parse the line
-        //     iss >> nBFace >> nf >> title; // Extract the first two ints and the string
-        // }
-        for (int j=0;j<nBFace;j++) {
+    file >> data.map.nBGroup;
+
+
+    data.boundaryGroup.nBFace.reserve(data.map.nBGroup);
+    data.boundaryGroup.nf.reserve(data.map.nBGroup);
+    data.boundaryGroup.Title.reserve(data.map.nBGroup);
+    data.boundaryGroup.NB.reserve(data.map.nBGroup);
+    for (int i=0;i<data.map.nBGroup;i++) {
+        int nBFaceTemp, nfTemp;
+        std::string title;
+        file >> nBFaceTemp >> nfTemp >> title;
+
+        std::vector<int> nbVec;
+        nbVec.reserve(nBFaceTemp);
+        for (int j=0;j<nBFaceTemp;j++) {
+            int nbTemp;
             file >> nbTemp;
-            nb.push_back(nbTemp);
+            nbVec.emplace_back(nbTemp);
         }
-        boundary
-
-
+        data.boundaryGroup.NB.emplace_back(std::move(nbVec));
+        data.boundaryGroup.nBFace.emplace_back(nBFaceTemp);
+        data.boundaryGroup.nf.emplace_back(nfTemp);
+        data.boundaryGroup.Title.emplace_back(std::move(title));
     }
+
+    // Saving element data
+    data.elementGroup.nElem.reserve(data.map.nElemGroup);
+    data.elementGroup.order.reserve(data.map.nElemGroup);
+    data.elementGroup.basis.reserve(data.map.nElemGroup);
+    for (int i=0;i<data.map.nElemGroup;i++) {
+        int nElemTemp, orderTemp;
+        std::string basisTemp;
+        file >> nElemTemp >> orderTemp >> basisTemp;
+        std::vector<int> neVec;
+        neVec.reserve(nElemTemp);
+        for (int j=0;j<nElemTemp;j++) {
+            int neTemp;
+            file >> neTemp;
+            neVec.emplace_back(neTemp);
+        }
+        data.elementGroup.nElem.emplace_back(nElemTemp);
+        data.elementGroup.order.emplace_back(orderTemp);
+        data.elementGroup.basis.emplace_back(std::move(basisTemp));
+        data.elementGroup.NE.emplace_back(std::move(neVec));
+    }
+
+    // Saving periodicity data
+    file >> data.map.nPG;
+    data.periodicGroup.nPGNode.reserve(data.map.nPG);
+    data.periodicGroup.periodicity.reserve(data.map.nPG);
+    for (int i=0;i<data.map.nPG;i++) {
+        int npgNodeTemp;
+        std::string periodTemp;
+        file >> npgNodeTemp >> periodTemp;
+        for (int j=0;j<npgNodeTemp;j++) {
+            int pair1, pair2;
+            file >> pair1 >> pair2;
+            data.periodicGroup.NP.emplace_back(std::vector<int>{pair1,pair2});
+        }
+        data.periodicGroup.nPGNode.emplace_back(npgNodeTemp);
+        data.periodicGroup.periodicity.emplace_back(std::move(periodTemp));
+    }
+
+    return data;
+
 }
-
-// ReadGRI::readFile(const std::string& filename)
-//     : filename_(filename) {}
-
-// bool ReadGRI::readFile() {
-//     std::ifstream file(filename_);
-//     if (!file.is_open()) {
-//         std::cerr << "Error opening file: " << filename_ << std::endl;
-//         return false;
-//     }
-
