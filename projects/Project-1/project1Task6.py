@@ -110,6 +110,7 @@ def globalRefine(Mesh):
     refinedMesh = {'vert':V, 'elem':refinedE.astype('int'), 'bounds':B, 'Bname':Mesh['Bname']}
     return refinedMesh
 
-Mesh = readgri('/home/curtis/Documents/UMich/Courses/AEROSP623/project1/test.gri')
+Mesh = readgri('/home/curtis/Documents/UMich/Courses/AEROSP623/aero-623/projects/Project-1/mesh_coarse.gri')
+plotmesh(Mesh, []);
 refinedMesh = globalRefine(Mesh)
 plotmesh(refinedMesh, []);
