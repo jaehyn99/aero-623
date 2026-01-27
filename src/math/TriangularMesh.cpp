@@ -1,6 +1,7 @@
 #include "TriangularMesh.h"
 #include <algorithm>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 
 bool TriangularMesh::Face::operator==(const Face& other) const noexcept{
@@ -146,6 +147,7 @@ Eigen::Vector2d TriangularMesh::normal(std::size_t elemID, std::size_t localFace
 
 void TriangularMesh::writeGri(const std::string& fileName) const noexcept{
     std::ofstream of;
+    of << std::fixed << std::setprecision(15);
     std::size_t ind = fileName.find(".gri");
     std::string fileBase = (ind == std::string::npos) ? fileName : fileName.substr(0, ind);
     
@@ -170,13 +172,6 @@ void TriangularMesh::writeGri(const std::string& fileName) const noexcept{
     for (std::size_t i = 0; i < _faces.size(); i++){
         const Face& face = _faces[i];
         if (face.isBoundaryFace() && face._periodicFaceID == -1) continue;
-
-        std::cout << "Face containing points " << face._pointID[0] << " and " << face._pointID[1];
-        if (face.isBoundaryFace()){
-            if (face._periodicFaceID == -1) std::cout << ", and is a boundary face";
-            else std::cout << ", and is a periodic boundary face";
-        }
-        std::cout << ". It borders element(s) " << face._elemID[0] << " and " << face._elemID[1] << "." << std::endl;
 
         if (!face.isBoundaryFace()){ // interior face
             // Elem numbers
@@ -204,6 +199,33 @@ void TriangularMesh::writeGri(const std::string& fileName) const noexcept{
             if (elemID < pElemID) of << elemID+1 << " " << faceL+1 << " " << pElemID+1 << " " << faceR+1 << "\n";
             else of << pElemID+1 << " " << faceR+1 << " " << elemID+1 << " " << faceL+1 << "\n";
         }
+    }
+    of.close();
+
+    // Periodic edges
+    of.open(fileBase + "periodicEdges.txt");
+    std::vector<int> periodicEdgeID;
+    periodicEdgeID.reserve(_faces.size());
+    stop = false;
+    int i = 1;
+    while (!stop){
+        for (auto face: _faces){
+            if (face.isBoundaryFace()){
+                if (face._periodicFaceID == -1) periodicEdgeID.push_back(0);
+                else{
+                    periodicEdgeID.push_back(i);
+                    i++;
+                }
+            } else{
+                stop = true;
+                break;
+            }
+        }
+    }
+    for (std::size_t i = 0; i < periodicEdgeID.size(); i++){
+        if (periodicEdgeID[i] == 0) continue;
+        const Face& face = _faces[i];
+        of << periodicEdgeID[face._periodicFaceID] << "\n";
     }
     of.close();
 
