@@ -49,11 +49,10 @@ def plotmesh(Mesh, fname):
 #-----------------------------------------------------------
 
 def globalRefine(Mesh):
-    # Bisect all edges
     V = Mesh['vert']
     E = Mesh['elem']
     nE = np.size(E[:, 0])
-    
+    nB= len(Mesh['bounds'])
     # Bisect all edges
     midpoint = {}
     for ii in range(nE):
@@ -91,11 +90,26 @@ def globalRefine(Mesh):
             refinedE[4*ii + jj, 1] = midpoint[tuple(key[jj, :])]
             refinedE[4*ii + 3, jj] = midpoint[tuple(key[jj, :])]
     
-    refinedMesh = {'vert':V, 'elem':refinedE.astype('int'), 'bounds':Mesh['bounds'], 'Bname':Mesh['Bname']}
-    print(Mesh['bounds'])
+    # Update bounds
+    B = Mesh['bounds']
+    for ii in range(nB):
+        nF = np.size(B[ii])//2
+        refinedB = np.zeros([2*nF, 2])
+        for jj in range(nF):
+            if (B[ii][jj][0] < B[ii][jj][1]):
+                key = (B[ii][jj][0], B[ii][jj][1])
+                
+            else:
+                key = (B[ii][jj][1], B[ii][jj][0])
+                
+            refinedB[2*jj] = np.array([B[ii][jj][0], midpoint[key]])
+            refinedB[2*jj + 1] = np.array([midpoint[key], B[ii][jj][1]])
+        
+        B[ii] = refinedB.astype('int')
+    
+    refinedMesh = {'vert':V, 'elem':refinedE.astype('int'), 'bounds':B, 'Bname':Mesh['Bname']}
     return refinedMesh
 
 Mesh = readgri('/home/curtis/Documents/UMich/Courses/AEROSP623/project1/test.gri')
 refinedMesh = globalRefine(Mesh)
-rrMesh = globalRefine(refinedMesh)
-plotmesh(rrMesh, []);
+plotmesh(refinedMesh, []);
