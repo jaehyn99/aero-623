@@ -52,10 +52,11 @@ class ProjectedNewton : public ConstrainedOptimizer<N>{
                 fx = fx1;
                 Hx = _H(x);
             }
+            return COStatus::NoConvergence;
         }
 
         else{
-            if (N == -1){
+            if constexpr (N == Eigen::Dynamic){
                 if (gx.size() != Hx.rows() || gx.size() != Hx.cols()) return COStatus::InvalidArgument;
             }
 

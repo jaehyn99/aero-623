@@ -38,7 +38,7 @@ class TridiagonalMatrix{
     Scalar& U(Eigen::Index i) noexcept{ return _u[i]; }
     const Scalar& U(Eigen::Index i) const noexcept{ return _u[i]; }
 
-    template<int M = N, typename = std::enable_if_t<M == Eigen::Dynamic>>
+    template<typename = std::enable_if_t<N == Eigen::Dynamic>>
     void resize(Eigen::Index n) const noexcept{
         assert(n > 1);
         _l.resize(n-1);
