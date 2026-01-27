@@ -6,3 +6,9 @@ are built on the Eigen library, which consists matrix/vector classes and linear 
 
 Build: make -j
 
+Projection test with arbitrary point: ./bin/main.exe proj1  projects/Project-1/bladeupper.txt projects/Project-1/bladelower.txt
+
+Refinement: ./bin/main.exe refine projects/Project-1/mesh_coarse.gri projects/Project-1/bladeupper.txt projects/Project-1/bladelower.txt mesh_refined.gri 2 3
+
+curve 1 is upperblade
+curve 5 is lowerblade

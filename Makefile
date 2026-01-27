@@ -5,10 +5,16 @@ INC_DIR = include
 OBJ_DIR = obj
 SRC_DIR = src
 
+PROJ_TARGET = $(BIN_DIR)/proj1_demo.exe
+PROJ_SRC    = $(SRC_DIR)/proj1_demo.cpp
+PROJ_OBJ    = $(OBJ_DIR)/proj1_demo.o
+PROJ_DEP    = $(DEP_DIR)/proj1_demo.d
+
 # Subdirecotires
 INC_SUBDIRS = $(shell find $(INC_DIR) -type d)
 SRC_SUBDIRS = $(shell find $(SRC_DIR) -type d)
 
+# SRC = $(shell find $(SRC_DIR) -name '*.cpp')
 SRC = $(shell find $(SRC_DIR) -name '*.cpp')
 OBJ = $(SRC:$(SRC_DIR)/%.cpp=$(OBJ_DIR)/%.o)
 DEP = $(SRC:$(SRC_DIR)/%.cpp=$(DEP_DIR)/%.d)
@@ -27,7 +33,7 @@ INC = $(addprefix -I,$(INC_SUBDIRS))
 CXX = g++
 CXXFLAGS = -Wall -O2 -MMD -MP -std=c++17 $(INC) -Iexternal/eigen # directory to external codes, add more if needed
 
-.PHONY: all clean test
+.PHONY: all clean test proj1
 
 # make all
 all: $(TARGET)
@@ -53,6 +59,20 @@ $(TEST_TARGET): $(TEST_OBJ) $(LIB_OBJ)
 $(OBJ_DIR)/$(TEST_DIR)/%.o: $(TEST_DIR)/%.cpp
 	@mkdir -p $(dir $@) $(DEP_DIR)/$(TEST_DIR)
 	@$(CXX) $(CXXFLAGS) -c $< -o $@ -MF $(DEP_DIR)/$(TEST_DIR)/$*.d
+
+# make proj1_demo
+proj1: $(PROJ_TARGET)
+	@$(PROJ_TARGET)
+
+$(PROJ_TARGET): $(PROJ_OBJ) $(LIB_OBJ)
+	@mkdir -p $(BIN_DIR)
+
+	@$(CXX) $(CXXFLAGS) -o $@ $^
+
+$(OBJ_DIR)/proj1_demo.o: $(SRC_DIR)/proj1_demo.cpp
+	@mkdir -p $(dir $@) $(DEP_DIR)
+	@$(CXX) $(CXXFLAGS) -c $< -o $@ -MF $(DEP_DIR)/proj1_demo.d
+-include $(PROJ_DEP)
 
 # make clean
 clean:

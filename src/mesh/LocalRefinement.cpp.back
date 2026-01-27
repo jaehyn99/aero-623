@@ -171,21 +171,40 @@ static ProjectionResult projectToBladePeriodicYForced(
     double Ly,
     int curveId // 0=upper, 1=lower
 ){
-    const Eigen::Vector2d shifts[3] = {{0.0,0.0},{0.0,+Ly},{0.0,-Ly}};
+    std::vector<Eigen::Vector2d> shifts;
+    shifts.reserve(9);
+
+    // Always consider periodic images
+    shifts.push_back({0.0, 0.0});
+    shifts.push_back({0.0, +Ly});
+    shifts.push_back({0.0, -Ly});
+
+    // If your mesh contains a *shifted* copy of the lower blade inside the same cell,
+    // include that family too (this matches your refinement-distance trick).
+    if (curveId == 1) {
+        const double y0 = kLowerYOffset; // <-- your existing constant (13 or 18)
+        shifts.push_back({0.0, +y0});
+        shifts.push_back({0.0, +y0 + Ly});
+        shifts.push_back({0.0, +y0 - Ly});
+
+        shifts.push_back({0.0, -y0});
+        shifts.push_back({0.0, -y0 + Ly});
+        shifts.push_back({0.0, -y0 - Ly});
+    }
 
     ProjectionResult best;
     best.dist2   = 1e300;
     best.curveId = curveId;
 
-    for (int k=0; k<3; ++k) {
-        const Eigen::Vector2d q = p + shifts[k];
+    for (const auto& s : shifts) {
+        const Eigen::Vector2d q = p + s;
 
         ProjectionResult r = (curveId == 0)
             ? projector.projectToUpper(blade, q)
             : projector.projectToLower(blade, q);
 
-        // map projection point back to original cell
-        r.xProj -= shifts[k];
+        // map projection back to original cell
+        r.xProj -= s;
 
         const Eigen::Vector2d diff = r.xProj - p;
         r.dist2 = diff.squaredNorm();
@@ -193,56 +212,57 @@ static ProjectionResult projectToBladePeriodicYForced(
 
         if (r.dist2 < best.dist2) best = r;
     }
+
     return best;
 }
 
 
-// // Distance projection that matches Curtis-style logic:
-// // candidates = upper with (0,±Ly) and lower with (+kLowerYOffset, ±Ly) shifts.
-// static ProjectionResult projectToBladeTwoPeriodicY_WithLowerShift(
-//     const Projection2D& projector,
-//     const BladeGeometry& blade,
-//     const Eigen::Vector2d& p,
-//     double Ly,
-//     double dYblade
-// ){
-//     const double shiftsY[3] = {0.0, +Ly, -Ly};
+// Distance projection that matches Curtis-style logic:
+// candidates = upper with (0,±Ly) and lower with (+kLowerYOffset, ±Ly) shifts.
+static ProjectionResult projectToBladeTwoPeriodicY_WithLowerShift(
+    const Projection2D& projector,
+    const BladeGeometry& blade,
+    const Eigen::Vector2d& p,
+    double Ly,
+    double dYblade
+){
+    const double shiftsY[3] = {0.0, +Ly, -Ly};
 
-//     ProjectionResult best;
-//     best.dist2 = 1e300;
+    ProjectionResult best;
+    best.dist2 = 1e300;
 
-//     // Upper images: q = p + (0, shiftY)
-//     for (int k=0; k<3; ++k) {
-//         const Eigen::Vector2d shift(0.0, shiftsY[k]);
-//         const Eigen::Vector2d q = p + shift;
+    // Upper images: q = p + (0, shiftY)
+    for (int k=0; k<3; ++k) {
+        const Eigen::Vector2d shift(0.0, shiftsY[k]);
+        const Eigen::Vector2d q = p + shift;
 
-//         ProjectionResult r = projector.projectToUpper(blade, q);
+        ProjectionResult r = projector.projectToUpper(blade, q);
 
-//         r.xProj -= shift;
-//         const Eigen::Vector2d diff = r.xProj - p;
-//         r.dist2 = diff.squaredNorm();
-//         r.dist  = std::sqrt(r.dist2);
+        r.xProj -= shift;
+        const Eigen::Vector2d diff = r.xProj - p;
+        r.dist2 = diff.squaredNorm();
+        r.dist  = std::sqrt(r.dist2);
 
-//         if (r.dist2 < best.dist2) best = r;
-//     }
+        if (r.dist2 < best.dist2) best = r;
+    }
 
-//     // Lower images (shifted): q = p + (0, dYblade + shiftY)
-//     for (int k=0; k<3; ++k) {
-//         const Eigen::Vector2d shift(0.0, dYblade + shiftsY[k]);
-//         const Eigen::Vector2d q = p + shift;
+    // Lower images (shifted): q = p + (0, dYblade + shiftY)
+    for (int k=0; k<3; ++k) {
+        const Eigen::Vector2d shift(0.0, dYblade + shiftsY[k]);
+        const Eigen::Vector2d q = p + shift;
 
-//         ProjectionResult r = projector.projectToLower(blade, q);
+        ProjectionResult r = projector.projectToLower(blade, q);
 
-//         r.xProj -= shift;
-//         const Eigen::Vector2d diff = r.xProj - p;
-//         r.dist2 = diff.squaredNorm();
-//         r.dist  = std::sqrt(r.dist2);
+        r.xProj -= shift;
+        const Eigen::Vector2d diff = r.xProj - p;
+        r.dist2 = diff.squaredNorm();
+        r.dist  = std::sqrt(r.dist2);
 
-//         if (r.dist2 < best.dist2) best = r;
-//     }
+        if (r.dist2 < best.dist2) best = r;
+    }
 
-//     return best;
-// }
+    return best;
+}
 
 ProjectionResult LocalRefinement::projectDistance(
     const Eigen::Vector2d& p,
@@ -254,11 +274,36 @@ ProjectionResult LocalRefinement::projectDistance(
     const double yMax = V.col(1).maxCoeff();
     const double Ly   = yMax - yMin;
 
-    const auto ru = projectToBladePeriodicYForced(projector, blade, p, Ly, 0);
-    const auto rl = projectToBladePeriodicYForced(projector, blade, p, Ly, 1);
-    return (ru.dist <= rl.dist) ? ru : rl;
+    return projectToBladeTwoPeriodicY_WithLowerShift(projector, blade, p, Ly, kLowerYOffset);
 }
 
+
+static ProjectionResult projectToBladePeriodicYForced_WithLowerYOffset(
+    const Projection2D& projector,
+    const BladeGeometry& blade,
+    const Eigen::Vector2d& p,
+    double Ly,
+    int curveId,            // 0=upper, 1=lower
+    double lowerYOffset     // e.g. kLowerYOffset
+){
+    // For LOWER: shift the query point up by lowerYOffset, project, then shift result back down.
+    if (curveId == 1) {
+        Eigen::Vector2d ps = p;
+        ps.y() += lowerYOffset;
+
+        auto r = projectToBladePeriodicYForced(projector, blade, ps, Ly, 1);
+        r.xProj.y() -= lowerYOffset;
+
+        // recompute distance against original p
+        const Eigen::Vector2d diff = r.xProj - p;
+        r.dist2 = diff.squaredNorm();
+        r.dist  = std::sqrt(r.dist2);
+        return r;
+    }
+
+    // Upper: unchanged
+    return projectToBladePeriodicYForced(projector, blade, p, Ly, 0);
+}
 
 //==============================================================
 // Boundary classification (for snapping midpoints on blade blocks)
@@ -271,7 +316,7 @@ static BladeBlockType classifyBladeBoundaryBlock(
     const BladeGeometry& blade,
     const Projection2D& projector,
     double Ly,
-    double tol = 1e-2,
+    double tol = 1e-4,
     double fracMin = 0.2,
     int maxTest = 200
 ){
@@ -295,8 +340,10 @@ static BladeBlockType classifyBladeBoundaryBlock(
         const int id = ids[idx];
         const Eigen::Vector2d p(V(id,0), V(id,1));
 
-        const ProjectionResult ru = projectToBladePeriodicYForced(projector, blade, p, Ly, 0);
-        const ProjectionResult rl = projectToBladePeriodicYForced(projector, blade, p, Ly, 1);
+        const ProjectionResult ru =
+            projectToBladePeriodicYForced_WithLowerYOffset(projector, blade, p, Ly, 0, kLowerYOffset);
+        const ProjectionResult rl =
+            projectToBladePeriodicYForced_WithLowerYOffset(projector, blade, p, Ly, 1, kLowerYOffset);
 
         if (ru.dist < tol) ++nCloseU;
         if (rl.dist < tol) ++nCloseL;
@@ -342,11 +389,12 @@ static void snapBladeBoundaries(mesh::GriMesh2D& mesh,
 
             const Eigen::Vector2d p(mesh.V(id,0), mesh.V(id,1));
 
-            const auto ru = projectToBladePeriodicYForced(projector, blade, p, Ly, 0); // upper
-            const auto rl = projectToBladePeriodicYForced(projector, blade, p, Ly, 1); // lower
+            const auto ru =
+                projectToBladePeriodicYForced_WithLowerYOffset(projector, blade, p, Ly, 0, kLowerYOffset);
+            const auto rl =
+                projectToBladePeriodicYForced_WithLowerYOffset(projector, blade, p, Ly, 1, kLowerYOffset);
 
             const auto& best = (ru.dist <= rl.dist) ? ru : rl;
-
             mesh.V(id,0) = best.xProj.x();
             mesh.V(id,1) = best.xProj.y();
 
@@ -402,6 +450,75 @@ static void verifyBladeSnap(const mesh::GriMesh2D& mesh,
     }
 }
 
+// Debuging helper to check blade boundary snapping start
+static void assertBladeBlocksPresent(const mesh::GriMesh2D& mesh,
+                                     const mesh::BladeGeometry& blade,
+                                     const mesh::Projection2D& projector,
+                                     double Ly)
+{
+    bool foundUpper = false;
+    bool foundLower = false;
+
+    for (const auto& blk : mesh.B) {
+        const auto btype =
+            classifyBladeBoundaryBlock(mesh.V, blk.edges, blade, projector, Ly);
+
+        if (btype == mesh::BladeBlockType::Upper) foundUpper = true;
+        if (btype == mesh::BladeBlockType::Lower) foundLower = true;
+    }
+
+    if (!(foundUpper || foundLower)) {
+        std::cerr << "[FATAL] No blade boundary blocks detected.\n";
+        throw std::runtime_error("Blade boundary classification failure");
+    }
+
+}
+
+static void assertBladeSnapOK(const mesh::GriMesh2D& mesh,
+                              const mesh::BladeGeometry& blade,
+                              const mesh::Projection2D& projector,
+                              double Ly,
+                              double tol = 1e-10)
+{
+    for (const auto& blk : mesh.B) {
+        const auto btype =
+            classifyBladeBoundaryBlock(mesh.V, blk.edges, blade, projector, Ly);
+
+        if (btype == mesh::BladeBlockType::None) continue;
+
+        // collect unique nodes
+        std::vector<int> ids;
+        ids.reserve(blk.edges.rows()*2);
+        for (int r=0; r<blk.edges.rows(); ++r) {
+            ids.push_back(blk.edges(r,0));
+            ids.push_back(blk.edges(r,1));
+        }
+        std::sort(ids.begin(), ids.end());
+        ids.erase(std::unique(ids.begin(), ids.end()), ids.end());
+
+        const int forceId = (btype == mesh::BladeBlockType::Upper) ? 0 : 1;
+
+        double rmax = 0.0;
+        int nbad = 0;
+
+        for (int id : ids) {
+            const Eigen::Vector2d p(mesh.V(id,0), mesh.V(id,1));
+            const auto pr = projectToBladePeriodicYForced(projector, blade, p, Ly, forceId);
+            rmax = std::max(rmax, pr.dist);
+            if (pr.dist > tol) ++nbad;
+        }
+
+        if (nbad > 0) {
+            std::cerr << "[FATAL] Blade snap failed on block " << blk.name
+                      << " type=" << ((forceId==0) ? "Upper" : "Lower")
+                      << " nbad=" << nbad << " rmax=" << rmax
+                      << " tol=" << tol << "\n";
+            throw std::runtime_error("Blade snapping failure");
+        }
+    }
+}
+// Debuging helper to check blade boundary snapping end
+
 //==============================================================
 // LocalRefinement methods
 //==============================================================
@@ -425,9 +542,9 @@ void LocalRefinement::computeNodeDistanceAndSize(
         const Eigen::Vector2d p(V(i,0), V(i,1));
 
         // Distance field: upper periodic + lower(+18) periodic
-        const auto ru = projectToBladePeriodicYForced(projector, blade, p, Ly, 0);
-        const auto rl = projectToBladePeriodicYForced(projector, blade, p, Ly, 1);
-        const auto& res = (ru.dist <= rl.dist) ? ru : rl;
+        const auto res = projectToBladeTwoPeriodicY_WithLowerShift(
+            projector, blade, p, Ly, kLowerYOffset
+        );
 
         distOut(i) = res.dist;
         hOut(i)    = sizeFun(res.dist, res.xProj.x());
@@ -481,10 +598,6 @@ GriMesh2D LocalRefinement::refineMesh(
         const double yMax = mesh.V.col(1).maxCoeff();
         const double Ly   = yMax - yMin;
 
-        // Option: choose offset
-        // or if your project dictates +13 (ONLY if that equals the needed image shift)
-        // const double lowerYOffset = +13.0;
-
         // 1) Build edge -> incident triangles adjacency
         std::unordered_map<EdgeKey, std::vector<int>, EdgeKeyHash> edge2tri;
         edge2tri.reserve(mesh.E.rows()*2);
@@ -512,9 +625,9 @@ GriMesh2D LocalRefinement::refineMesh(
             );
 
             // Use corrected distance (upper periodic + lower(+18) periodic)
-            const auto ru = projectToBladePeriodicYForced(projector, blade, mid, Ly, 0);
-            const auto rl = projectToBladePeriodicYForced(projector, blade, mid, Ly, 1);
-            const auto& proj = (ru.dist <= rl.dist) ? ru : rl;
+            const auto proj = projectToBladeTwoPeriodicY_WithLowerShift(
+                projector, blade, mid, Ly, kLowerYOffset
+            );
 
             const double hDes = sizeFun(proj.dist, proj.xProj.x());
 
@@ -774,8 +887,50 @@ GriMesh2D LocalRefinement::refineMesh(
         smoothInterior(mesh, smoothIters, omega);
         double Lafter  = avgEdgeLen(mesh.V, mesh.E);
         std::cout << "[smooth] avgEdgeLen " << Lbefore << " -> " << Lafter << "\n";
+        // Smoothing metric: average edge length before/after
+
+
 
         // 9) Re-snap blade boundary nodes to spline geometry
+        snapBladeBoundaries(mesh, blade, projector, Ly);
+
+        // HARD ASSERT: must have both blade blocks
+        assertBladeBlocksPresent(mesh, blade, projector, Ly);
+        assertBladeSnapOK(mesh, blade, projector, Ly, 1e-10);
+
+        // sanity: blade boundary nodes should lie on geometry (dist ~ 0)
+        double maxDist = 0.0;
+        int cnt = 0;
+
+        for (const auto& blk : mesh.B) {
+            const BladeBlockType btype =
+                classifyBladeBoundaryBlock(mesh.V, blk.edges, blade, projector, Ly);
+
+            if (btype == BladeBlockType::None) continue;
+
+            std::vector<int> ids;
+            ids.reserve(blk.edges.rows()*2);
+            for (int r=0; r<blk.edges.rows(); ++r) { ids.push_back(blk.edges(r,0)); ids.push_back(blk.edges(r,1)); }
+            std::sort(ids.begin(), ids.end());
+            ids.erase(std::unique(ids.begin(), ids.end()), ids.end());
+
+            const int forceId = (btype == BladeBlockType::Upper) ? 0 : 1;
+            for (int id : ids) {
+                const Eigen::Vector2d p(mesh.V(id,0), mesh.V(id,1));
+                auto pr = projectToBladePeriodicYForced(projector, blade, p, Ly, forceId);
+                maxDist = std::max(maxDist, pr.dist);
+                cnt++;
+            }
+        }
+        std::cout << "[snap check] blade nodes=" << cnt << " maxDist=" << maxDist << "\n";
+        // sanity: blade boundary nodes should lie on geometry (dist ~ 0)
+        for (const auto& blk : mesh.B) {
+            auto btype = classifyBladeBoundaryBlock(mesh.V, blk.edges, blade, projector, Ly);
+            std::cout << "[BLK] name=" << blk.name
+                    << " edges=" << blk.edges.rows()
+                    << " btype=" << int(btype) << "\n";
+        }
+
         snapBladeBoundaries(mesh, blade, projector, Ly);
         verifyBladeSnap(mesh, blade, projector, Ly, 1e-6);
 
