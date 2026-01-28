@@ -65,11 +65,7 @@ TriangularMesh::TriangularMesh(const std::string& fileName){
 
             // Look if its faces have already been added to faces
             for (std::size_t j = 0; j < 3; j++){
-                std::size_t fInd1, fInd2;
-                if (j == 0){ fInd1 = ind2; fInd2 = ind3; }
-                else if (j == 1){ fInd1 = ind3; fInd2 = ind1; }
-                else{ fInd1 = ind1; fInd2 = ind2; } 
-                Face iface(fInd1, fInd2);
+                Face iface(elem._pointID[(j+1)%3], elem._pointID[(j+2)%3]);
 
                 // Assign face ID to elem and elem ID to face
                 std::size_t faceID = std::find(_faces.begin(), _faces.end(), iface) - _faces.begin();
@@ -231,13 +227,14 @@ void TriangularMesh::writeGri(const std::string& fileName) const noexcept{
 
     // Connectivity matrix B2E
     of.open(fileBase + "B2E.txt");
-    for (auto face: _faces){
+    for (std::size_t i = 0; i < _faces.size(); i++){
+        const Face& face = _faces[i];
         if (!face.isBoundaryFace() || face._periodicFaceID != -1) continue;
 
         std::size_t elemID = face._elemID[0]; // Elem number
         // Local face number
         const Element& elem = _elems[elemID];
-        std::size_t localFaceID = std::find(elem._faceID.cbegin(), elem._faceID.cend(), elemID) - elem._faceID.cbegin();
+        std::size_t localFaceID = std::find(elem._faceID.cbegin(), elem._faceID.cend(), i) - elem._faceID.cbegin();
         // Group number
         std::size_t bGroup = std::find(boundaries.cbegin(), boundaries.cend(), face._title) - boundaries.cbegin();
         of << elemID+1 << " " << localFaceID+1 << " " << bGroup+1 << "\n";
