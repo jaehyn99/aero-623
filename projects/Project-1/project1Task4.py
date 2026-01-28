@@ -11,21 +11,29 @@ from scipy.optimize import fsolve
 import matplotlib.pyplot as plt
 
 #%% 2D Spline
+
 def tridiag(A, B, C, D):
-    CP = np.zeros(np.size(C))
-    DP = np.zeros(np.size(D))
-    x = np.zeros(np.size(D))
-    CP[0] = C[0]/A[0]
-    DP[0] = D[0]/A[0]
-    for ii in range(1, np.size(CP)):
-        CP[ii] = C[ii]/(A[ii] - B[ii]*CP[ii - 1])
-        DP[ii] = (D[ii] - B[ii]*DP[ii - 1])/(A[ii] - B[ii]*CP[ii - 1])
-    
-    DP[-1] = (D[-1] - B[-1]*DP[-2])/(A[-1] - B[-1]*CP[-2])
-    x[-1] = DP[-1]
-    for ii in range(2, np.size(x) + 1):
-        x[-ii] = DP[-ii] - CP[-ii + 1]*x[-ii + 1]
-        
+    n = np.size(A)
+
+    CP = np.zeros(n-1)
+    DP = np.zeros(n)
+    x  = np.zeros(n)
+
+    CP[0] = C[0] / A[0]
+    DP[0] = D[0] / A[0]
+
+    for i in range(1, n-1):
+        denom = A[i] - B[i-1] * CP[i-1]
+        CP[i] = C[i] / denom
+        DP[i] = (D[i] - B[i-1] * DP[i-1]) / denom
+
+    denom = A[n-1] - B[n-2] * CP[n-2]
+    DP[n-1] = (D[n-1] - B[n-2] * DP[n-2]) / denom
+
+    x[n-1] = DP[n-1]
+    for i in range(n-2, -1, -1):
+        x[i] = DP[i] - CP[i] * x[i+1]
+
     return x
 
 def splineFit(X, S):
@@ -42,13 +50,13 @@ def splineFit(X, S):
     C[0] = DS[0]
     D[0] = 3*(X[1] - X[0])
     for ii in range(1, np.size(A) - 1):
-        B[ii - 1] = DS[ii - 1]
+        B[ii - 1] = DS[ii]
         A[ii] = 2*(DS[ii - 1] + DS[ii])
         C[ii] = DS[ii - 1]
         D[ii] = 3*((X[ii] - X[ii - 1])/DS[ii - 1]*DS[ii] + (X[ii + 1] - X[ii])/DS[ii]*DS[ii - 1])
         
-    B[-1] = DS[-1]
-    A[-1] = 2*DS[-1]
+    B[-1] = DS[-2]
+    A[-1] = 2*DS[-2]
     D[-1] = 3*(X[-1] - X[-2])
     dX = tridiag(A, B, C, D)
     
@@ -71,23 +79,6 @@ def splineFun(s, Xi, Si, dXi):
     x = (1 - t)*Xi[ind] + t*Xi[ind + 1] + (t - t**2)*((1 - t)*xi0P - t*xi1P)
    
     return x
-
-def diffSplineFun(s, Xi, Si, dXi):
-    lo, hi = 0, len(Si)
-    while lo < hi:
-        ind = (lo + hi) // 2
-        if Si[ind] < s:
-            lo = ind + 1
-        else:
-            hi = ind
-    
-    ind = (lo + hi) // 2 - 1
-    DSi = Si[ind + 1] - Si[ind]
-    t = (s - Si[ind])/DSi
-    xi0P = (dXi[ind] - (Xi[ind + 1] - Xi[ind])/DSi)*DSi
-    xi1P = (dXi[ind + 1] - (Xi[ind + 1] - Xi[ind])/DSi)*DSi
-    dx = Xi[ind + 1] - Xi[ind] + (1 - 2*t)*((1 - t)*xi0P - t*xi1P) - (t - t**2)*(xi0P + xi1P)
-    return dx
 
 def sSimps(Xi, Xip1, Yi, Yip1, Si, Sip1, dXi, dXip1, dYi, dYip1):
     xi0P = (dXi - (Xip1 - Xi)/(Sip1 - Si))*(Sip1 - Si)
@@ -126,8 +117,8 @@ def splineFit2D(X, Y, eps = 1E-12):
         
     return S, dXi, dYi
 
-def sBreakRes(s, xU, X, S, dXi):
-    return xU[-1] - splineFun(s, X, S, dXi)
+def sBreakRes(s, x, X, S, dXi):
+    return x[-1] - splineFun(s, X, S, dXi)
 
 xU = np.loadtxt('/home/curtis/Documents/UMich/Courses/AEROSP623/project1/bladeupper.txt', usecols=(0,))
 yU = np.loadtxt('/home/curtis/Documents/UMich/Courses/AEROSP623/project1/bladeupper.txt', usecols=(1,))
@@ -173,15 +164,15 @@ gr = (np.sqrt(5.0) - 1.0) / 2.0
 def f2D(s, p, q, Xi, Yi, Si, dXi, dYi):
     return (splineFun(s, Xi, Si, dXi) - p)**2 + (splineFun(s, Yi, Si, dYi) - q)**2
 
-def gss(f, a, b, p, q, Xi, Yi, Si, dXi, dYi, tol=1e-14, max_iter=200):
+def gss(f, a, b, p, q, Xi, Yi, Si, dXi, dYi, tol=1e-14, max_iter=300):
     c = b - gr * (b - a)
     d = a + gr * (b - a)
     fc = f(c, p, q, Xi, Yi, Si, dXi, dYi)
     fd = f(d, p, q, Xi, Yi, Si, dXi, dYi)
 
-    for _ in range(max_iter):
-        if abs(b - a) < tol:
-            break
+    for ii in range(max_iter):
+#        if abs(b - a) < tol:
+#            break
 
         if fc < fd:
             b = d
@@ -197,9 +188,9 @@ def gss(f, a, b, p, q, Xi, Yi, Si, dXi, dYi, tol=1e-14, max_iter=200):
             fd = f(d, p, q, Xi, Yi, Si, dXi, dYi)
 
     x_best = 0.5 * (a + b)
-    return x_best, f(x_best, p, q, Xi, Yi, Si, dXi, dYi)
+    return x_best, np.sqrt(f(x_best, p, q, Xi, Yi, Si, dXi, dYi))
 
-p = 15; q = -5
+p = -7; q = 7
 
 plt.plot(p, q, 'ro'); 
 sPlot = np.linspace(S[0], sBreak, 100)
@@ -215,10 +206,10 @@ for ii in range(100):
 
 plt.plot(xPlot, yPlot, 'ro', markersize = 2)
 
-s1, _ = gss(f2D, 0, sBreak, p, q, X, Y, S, dXi, dYi)
-s2, _ = gss(f2D, sBreak, S[-1], p, q, X, Y + 18, S, dXi, dYi)
+s1, l1 = gss(f2D, 0, sBreak, p, q, X, Y, S, dXi, dYi)
+s2, l2 = gss(f2D, sBreak, S[-1], p, q, X, Y + 18, S, dXi, dYi)
 
-if f2D(s1, p, q, X, Y, S, dXi, dYi) <= f2D(s2, p, q, X, Y + 18, S, dXi, dYi):
+if l1 <= l2:
     sS = s1
     plt.plot([p, splineFun(sS, X, S, dXi)], [q, splineFun(sS, Y, S, dYi)])
 
