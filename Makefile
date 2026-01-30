@@ -60,20 +60,6 @@ $(OBJ_DIR)/$(TEST_DIR)/%.o: $(TEST_DIR)/%.cpp
 	@mkdir -p $(dir $@) $(DEP_DIR)/$(TEST_DIR)
 	@$(CXX) $(CXXFLAGS) -c $< -o $@ -MF $(DEP_DIR)/$(TEST_DIR)/$*.d
 
-# make proj1_demo
-proj1: $(PROJ_TARGET)
-	@$(PROJ_TARGET)
-
-$(PROJ_TARGET): $(PROJ_OBJ) $(LIB_OBJ)
-	@mkdir -p $(BIN_DIR)
-
-	@$(CXX) $(CXXFLAGS) -o $@ $^
-
-$(OBJ_DIR)/proj1_demo.o: $(SRC_DIR)/proj1_demo.cpp
-	@mkdir -p $(dir $@) $(DEP_DIR)
-	@$(CXX) $(CXXFLAGS) -c $< -o $@ -MF $(DEP_DIR)/proj1_demo.d
--include $(PROJ_DEP)
-
 # make clean
 clean:
 	@rm -rf $(OBJ_DIR) $(BIN_DIR) $(DEP_DIR)
