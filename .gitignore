@@ -18,3 +18,6 @@
 
 # External
 external/*
+
+# Other files
+*.zip
