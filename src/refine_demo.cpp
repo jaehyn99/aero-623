@@ -49,11 +49,6 @@ int run_refine_demo(int argc, char** argv)
 
     mesh::Projection2D projector;
 
-    // Sizing parameters
-    const double hMin = 0.02;
-    const double hMax = 1.20; // at least 0.9
-    const double d0   = 1.5;
-
     // Compute LE/TE robustly from blade sampling
     auto bladeXMinMax = [&](int Ns=400) {
         double xmin =  1e300, xmax = -1e300;
@@ -71,9 +66,20 @@ int run_refine_demo(int argc, char** argv)
     };
 
     const auto [xLE, xTE] = bladeXMinMax();
-    const double xSig = 0.1;
 
-    mesh::SizingFunction sizeFun(hMin, hMax, d0, xLE, xTE, xSig, 0.6, 2.0);
+    // Sizing function parameters
+    const double hMin      = 0.3;
+    const double hMid      = 0.5;
+    const double hInf      = 5;
+
+    const double wLE_      = 0.3 * (xTE - xLE);
+    const double wTE_      = 0.3 * (xTE - xLE);
+    const double wDelta_   = 0.4 * (xTE - xLE);
+
+    const double deltaMin_ = 0.6 * (xTE - xLE);
+    const double deltaMax_ = 0.2 * (xTE - xLE);
+
+    mesh::SizingFunction sizeFun(hMin, hMid, hInf, xLE, xTE, wLE_, wTE_, wDelta_, deltaMin_, deltaMax_);
 
     // --- refine ---
     mesh::GriMesh2D meshOut = mesh::LocalRefinement::refineMesh(

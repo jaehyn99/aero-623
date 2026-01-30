@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import os
 
 #-----------------------------------------------------------
 def readgri(fname):
@@ -55,27 +56,38 @@ def read_scalar_field_maybe_header(path):
     return vals
 
 #-----------------------------------------------------------
-def plot_wall_distance(Mesh, dist, fname, show_mesh=True, use_log=True, clim=None):
+def plot_wall_distance(Mesh, dist, fname, show_mesh=True, use_log=False, clim=None, plot_sizing=False):
     V = Mesh['V']; E = Mesh['E']
 
     if dist.shape[0] != V.shape[0]:
         raise ValueError(f"dist length {dist.shape[0]} != number of nodes {V.shape[0]}")
 
-    field = dist.copy()
-    if use_log:
-        field = np.log10(np.maximum(field, 1e-16))
-        title = "log10"
+    if plot_sizing:
+        if use_log:
+            field = np.log10(np.maximum(field, 1e-16))
+            title = "log10(size function h)"
+        else:
+            field = dist.copy()
+            title = "Size function h"
+    else:
+        if use_log:
+            field = np.log10(np.maximum(field, 1e-16))
+            title = "log10(wall distance)"
+        else:
+            field = dist.copy()
+            title = "Wall distance"
+    
 
-    fig = plt.figure(figsize=(12, 12))
+    fig = plt.figure(figsize=(12, 8))
     tpc = plt.tripcolor(V[:, 0], V[:, 1], E, field, shading='gouraud')
 
     if clim is not None:
         tpc.set_clim(clim[0], clim[1])
 
-    plt.colorbar(tpc, shrink=0.85, label=None)
+    plt.colorbar(tpc, shrink=0.85, label=title)
 
     if show_mesh:
-        plt.triplot(V[:, 0], V[:, 1], E, 'k-', linewidth=0.3)
+        plt.triplot(V[:, 0], V[:, 1], E, 'k-', linewidth=0.2)
 
     plt.axis('equal')
     plt.tight_layout()
@@ -100,29 +112,32 @@ def plot_mesh_with_blades(mesh, blade_upper, blade_lower, out_png):
 #-----------------------------------------------------------
 def main():
 
-    base = "/home/jaehyn/CFD2/aero-623"
-    # gri_file  = "/home/jaehyn/CFD2/aero-623/mesh_refined.gri"
-    # dist_file = gri_file.replace(".gri", ".walldist.txt")
-    # out_png   = "/home/jaehyn/CFD2/aero-623/wall_distance.png"
+    base = os.getcwd()
 
-    # Mesh = readgri(gri_file)
-    # dist = read_scalar_field_maybe_header(dist_file)
+    gri_file  = base + "/mesh_refined.gri"
+    dist_file = gri_file.replace(".gri", ".walldist.txt")
+    out_png_dist   = base + "/wall_distance.png"
+    out_png_size = base + "/size_function.png"
 
-    # print("Nnodes =", Mesh["V"].shape[0])
-    # print("Ndist  =", dist.shape[0])
-    # if dist.size:
-    #     print("min/max=", dist.min(), dist.max())
+    Mesh = readgri(gri_file)
+    dist = read_scalar_field_maybe_header(dist_file)
 
-    # plot_wall_distance(Mesh, dist, out_png, show_mesh=True, use_log=False)
+    print("Nnodes =", Mesh["V"].shape[0])
+    print("Ndist  =", dist.shape[0])
+    if dist.size:
+        print("min/max=", dist.min(), dist.max())
 
-    # h = np.loadtxt("mesh_refined.hnode.txt")
-    # plot_wall_distance(Mesh, h, "size_function.png") # legend should be size function h
+    plot_wall_distance(Mesh, dist, out_png_dist, show_mesh=True, use_log=False)
+
+    h = np.loadtxt(base + "/mesh_refined.hnode.txt")
+    plot_wall_distance(Mesh, h, out_png_size, show_mesh=True, use_log=False, plot_sizing=True)
     
     mesh_file = base + "/projects/Project-1/mesh_coarse.gri"  # available in sandbox
     mesh = readgri(str(mesh_file))
 
     out_png = base + "/mesh_coarse_overlay_blades.png"
     plot_mesh_with_blades(mesh, str(base + "/projects/Project-1/bladeupper.txt"), str(base + "/projects/Project-1/bladelower.txt"), str(out_png))
+
 
 if __name__ == "__main__":
     main()
