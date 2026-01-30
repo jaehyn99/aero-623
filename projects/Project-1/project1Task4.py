@@ -8,7 +8,6 @@ Created on Mon Jan 12 18:16:34 2026
 
 import numpy as np
 from scipy.optimize import fsolve
-import matplotlib.pyplot as plt
 
 #%% 2D Spline
 
@@ -77,7 +76,7 @@ def splineFun(s, Xi, Si, dXi):
     xi0P = (dXi[ind] - (Xi[ind + 1] - Xi[ind])/DSi)*DSi
     xi1P = (dXi[ind + 1] - (Xi[ind + 1] - Xi[ind])/DSi)*DSi
     x = (1 - t)*Xi[ind] + t*Xi[ind + 1] + (t - t**2)*((1 - t)*xi0P - t*xi1P)
-   
+    
     return x
 
 def sSimps(Xi, Xip1, Yi, Yip1, Si, Sip1, dXi, dXip1, dYi, dYip1):
@@ -88,8 +87,8 @@ def sSimps(Xi, Xip1, Yi, Yip1, Si, Sip1, dXi, dXip1, dYi, dYip1):
     dxi0 = Xip1 - Xi + xi0P
     dyi0 = Yip1 - Yi + yi0P
     f0 = np.sqrt(dxi0**2 + dyi0**2)
-    dxi1 = Xip1 - Xi - xi0P/4 + xi1P/4
-    dyi1 = Yip1 - Yi - yi0P/4 + yi1P/4
+    dxi1 = Xip1 - Xi - xi0P/4 - xi1P/4
+    dyi1 = Yip1 - Yi - yi0P/4 - yi1P/4
     f1 = np.sqrt(dxi1**2 + dyi1**2)
     dxi2 = Xip1 - Xi + xi1P
     dyi2 = Yip1 - Yi + yi1P
@@ -103,7 +102,9 @@ def splineFit2D(X, Y, eps = 1E-12):
         S[ii] = S[ii - 1] + np.sqrt((X[ii] - X[ii - 1])**2 + (Y[ii] - Y[ii - 1])**2)
         
     splineErr = 1
+    itr = 0
     while (splineErr > eps):
+        print(itr, splineErr)
         dXi = splineFit(X, S)
         dYi = splineFit(Y, S)
         splineErr = 0
@@ -114,7 +115,7 @@ def splineFit2D(X, Y, eps = 1E-12):
             
         S = trueS
         splineErr /= S[-1]
-        
+        itr += 1
     return S, dXi, dYi
 
 def sBreakRes(s, x, X, S, dXi):
@@ -134,30 +135,7 @@ xPlot = np.zeros(100)
 yPlot = np.zeros(100)
 sPlot = np.linspace(S[0], S[-1], 100)
 
-#for ii in range(100):
-#    xPlot[ii] = splineFun(sPlot[ii], X, S, dXi)
-#    yPlot[ii] = splineFun(sPlot[ii], Y, S, dYi)
-    
-#plt.plot(xPlot, yPlot); plt.plot(X, Y, 'ko', markersize = 1); plt.show()
-
 sBreak = fsolve(sBreakRes, 30, args = (xU, X, S, dXi))[0]
-sPlot = np.linspace(S[0], sBreak, 100)
-for ii in range(100):
-    xPlot[ii] = splineFun(sPlot[ii], X, S, dXi)
-    yPlot[ii] = splineFun(sPlot[ii], Y, S, dYi)
-
-plt.plot(xPlot, yPlot, 'ro', markersize = 2)
-sPlot = np.linspace(sBreak, S[-1], 100)
-for ii in range(100):
-    xPlot[ii] = splineFun(sPlot[ii], X, S, dXi)
-    yPlot[ii] = splineFun(sPlot[ii], Y + 18, S, dYi)
-
-plt.plot(xPlot, yPlot, 'ro', markersize = 2)
-plt.plot(xU, yU, 'ko', markersize = 1)
-plt.plot(xL, yL + 18, 'ko', markersize = 1)
-ax = plt.gca()
-ax.set_aspect('equal', adjustable='box')
-plt.show()
 #%% 2D Spline Projection
 gr = (np.sqrt(5.0) - 1.0) / 2.0
 
@@ -171,8 +149,8 @@ def gss(f, a, b, p, q, Xi, Yi, Si, dXi, dYi, tol=1e-14, max_iter=300):
     fd = f(d, p, q, Xi, Yi, Si, dXi, dYi)
 
     for ii in range(max_iter):
-#        if abs(b - a) < tol:
-#            break
+    #    if abs(b - a) < tol:
+    #        break
 
         if fc < fd:
             b = d
@@ -189,34 +167,3 @@ def gss(f, a, b, p, q, Xi, Yi, Si, dXi, dYi, tol=1e-14, max_iter=300):
 
     x_best = 0.5 * (a + b)
     return x_best, np.sqrt(f(x_best, p, q, Xi, Yi, Si, dXi, dYi))
-
-p = -7; q = 7
-
-plt.plot(p, q, 'ro'); 
-sPlot = np.linspace(S[0], sBreak, 100)
-for ii in range(100):
-    xPlot[ii] = splineFun(sPlot[ii], X, S, dXi)
-    yPlot[ii] = splineFun(sPlot[ii], Y, S, dYi)
-
-plt.plot(xPlot, yPlot, 'ro', markersize = 2)
-sPlot = np.linspace(sBreak, S[-1], 100)
-for ii in range(100):
-    xPlot[ii] = splineFun(sPlot[ii], X, S, dXi)
-    yPlot[ii] = splineFun(sPlot[ii], Y + 18, S, dYi)
-
-plt.plot(xPlot, yPlot, 'ro', markersize = 2)
-
-s1, l1 = gss(f2D, 0, sBreak, p, q, X, Y, S, dXi, dYi)
-s2, l2 = gss(f2D, sBreak, S[-1], p, q, X, Y + 18, S, dXi, dYi)
-
-if l1 <= l2:
-    sS = s1
-    plt.plot([p, splineFun(sS, X, S, dXi)], [q, splineFun(sS, Y, S, dYi)])
-
-else:
-    sS = s2
-    plt.plot([p, splineFun(sS, X, S, dXi)], [q, splineFun(sS, Y + 18, S, dYi)])
-
-ax = plt.gca()
-ax.set_aspect('equal', adjustable='box')
-plt.show()

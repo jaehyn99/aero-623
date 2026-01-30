@@ -52,28 +52,29 @@ def writegri(fname, V, E, B, Bname):
         f.write(f"{NB}\n")
         for Bi, name in zip(B, Bname):
             Nb = Bi.shape[0]
-            f.write(f"{Nb} 0 {name}\n")
+            f.write(f"{Nb} 2 {name}\n")
             for row in Bi:
                 f.write(" ".join(str(i + 1) for i in row) + "\n")
 
         # elements (single block)
-        f.write(f"{Ne}\n")
+        f.write(f"{Ne} 1 TriLagrange\n")
         for row in E:
             f.write(" ".join(str(i + 1) for i in row) + "\n")
 
 #-----------------------------------------------------------
-def plotmesh(Mesh, fname):
+def plotmesh(Mesh):
     V = Mesh['vert']; E = Mesh['elem']; 
     f = plt.figure(figsize=(12,12))
     #plt.tripcolor(V[:,0], V[:,1], triangles=E)
     plt.triplot(V[:,0], V[:,1], E, 'k-')
     #plt.plot(V[Mesh['bounds'][4][:, 0]][:, 0],V[Mesh['bounds'][4][:, 0]][:, 1], 'ro', markersize = 10)
-    dosave = not not fname
     plt.axis('equal')
     plt.tick_params(axis='both', labelsize=12)
-    f.tight_layout(); plt.show(block=(not dosave))
-    if (dosave): plt.savefig(fname)
-    plt.close(f)
+    f.tight_layout()
+    #plt.show()
+#    plt.plot([V[E[1482]][0, 0], V[E[1482]][1, 0], V[E[1482]][2, 0]], [V[E[1482]][0, 1], V[E[1482]][1, 1], V[E[1482]][2, 1]], 'ro'); plt.show()
+    #plt.savefig('/home/curtis/Documents/UMich/Courses/AEROSP623/project1/refinedMesh.png', dpi = 300)
+    plt.show(); plt.close(f)
 
 #-----------------------------------------------------------
 
@@ -87,42 +88,52 @@ def globalRefine(Mesh):
     B = Mesh['bounds']
     nF = np.size(B[0])//2
     refinedB = np.zeros([2*nF, 2])
-    for jj in range(nF):
-        if (B[0][jj][0] < B[0][jj][1]):
-            key = (B[0][jj][0], B[0][jj][1])
+    sS = 0
+    for ii in range(nF):
+        if (B[0][ii][0] < B[0][ii][1]):
+            key = (B[0][ii][0], B[0][ii][1])
             
         else:
-            key = (B[0][jj][1], B[0][jj][0])
-        
-        x1 = V[B[0][jj][0], 0]; y1 = V[B[0][jj][0], 1]
-        x2 = V[B[0][jj][1], 0]; y2 = V[B[0][jj][1], 1]
-        
-        xm = 0.5*(x1 + x2); ym = 0.5*(y1 + y2)
-        midpoint[key] = np.size(V[:, 0])
-        sS = 0
-        sS, _ = project1Task4.gss(project1Task4.f2D, sS, project1Task4.sBreak, xm, ym, project1Task4.X, project1Task4.Y, project1Task4.S, project1Task4.dXi, project1Task4.dYi)
-        xm = project1Task4.splineFun(sS, project1Task4.X, project1Task4.S, project1Task4.dXi); ym = project1Task4.splineFun(sS, project1Task4.Y, project1Task4.S, project1Task4.dYi)
-        V = np.append(V, np.array([[xm, ym]]), axis = 0)
+            key = (B[0][ii][1], B[0][ii][0])
 
+        if key in midpoint:
+            continue
+        
+        x1 = V[B[0][ii][0], 0]; y1 = V[B[0][ii][0], 1]
+        x2 = V[B[0][ii][1], 0]; y2 = V[B[0][ii][1], 1]    
+        xm = 0.5*(x1 + x2); ym = 0.5*(y1 + y2)
+        ds = np.sqrt((x2 - x1)**2 + (y2 - y1)**2)
+
+        midpoint[key] = np.size(V[:, 0])
+        sS, _ = project1Task4.gss(project1Task4.f2D, sS, np.min([sS + ds, project1Task4.sBreak]), xm, ym, project1Task4.X, project1Task4.Y, project1Task4.S, project1Task4.dXi, project1Task4.dYi)
+        xm = project1Task4.splineFun(sS, project1Task4.X, project1Task4.S, project1Task4.dXi); ym = project1Task4.splineFun(sS, project1Task4.Y, project1Task4.S, project1Task4.dYi)
+
+        sS += np.sqrt((x2 - xm)**2 + (y2 - ym)**2)
+        V = np.append(V, np.array([[xm, ym]]), axis = 0)
+        
     nF = np.size(B[4])//2
-    for jj in range(nF):
-        if (B[4][jj][0] < B[4][jj][1]):
-            key = (B[4][jj][0], B[4][jj][1])
+    refinedB = np.zeros([2*nF, 2])
+    sS = project1Task4.sBreak
+    for ii in range(nF):
+        if (B[4][ii][0] < B[4][ii][1]):
+            key = (B[4][ii][0], B[4][ii][1])
             
         else:
-            key = (B[4][jj][1], B[4][jj][0])
+            key = (B[4][ii][1], B[4][ii][0])
+
+        if key in midpoint:
+            continue
         
-        x1 = V[B[4][jj][0], 0]; y1 = V[B[4][jj][0], 1]
-        x2 = V[B[4][jj][1], 0]; y2 = V[B[4][jj][1], 1]
-        
+        x1 = V[B[4][ii][0], 0]; y1 = V[B[4][ii][0], 1]
+        x2 = V[B[4][ii][1], 0]; y2 = V[B[4][ii][1], 1]
         xm = 0.5*(x1 + x2); ym = 0.5*(y1 + y2)
+        ds = np.sqrt((x2 - x1)**2 + (y2 - y1)**2)
+        
         midpoint[key] = np.size(V[:, 0])
-        sS, _ = project1Task4.gss(project1Task4.f2D, sS, project1Task4.S[-1], xm, ym, project1Task4.X, project1Task4.Y + 18, project1Task4.S, project1Task4.dXi, project1Task4.dYi)
+        sS, _ = project1Task4.gss(project1Task4.f2D, sS, np.min([sS + ds, project1Task4.S[-1]]), xm, ym, project1Task4.X, project1Task4.Y + 18, project1Task4.S, project1Task4.dXi, project1Task4.dYi)
         xm = project1Task4.splineFun(sS, project1Task4.X, project1Task4.S, project1Task4.dXi); ym = project1Task4.splineFun(sS, project1Task4.Y + 18, project1Task4.S, project1Task4.dYi)
+        sS += np.sqrt((x2 - xm)**2 + (y2 - ym)**2)
         V = np.append(V, np.array([[xm, ym]]), axis = 0)
-        plt.plot(x1, y1, 'ko', markersize = 2)
-        plt.plot(xm, ym, 'go', markersize = 3)
-        plt.plot(x2, y2, 'ro')
     
     # Bisect all edges
     for ii in range(nE):
@@ -179,16 +190,14 @@ def globalRefine(Mesh):
     refinedMesh = {'vert':V, 'elem':refinedE.astype('int'), 'bounds':B, 'Bname':Mesh['Bname']}
     return refinedMesh
 
-M = readgri('/home/curtis/Documents/UMich/Courses/AEROSP623/project1/mesh_coarse.gri')
-#Mesh = readgri('Z:/dotfiles/Documents/AEROSP623/project1/mesh_refined_2394.gri')
-plotmesh(M, [])
-rMesh = globalRefine(M)
-plotmesh(rMesh, [])
-#writegri('Z:/dotfiles/Documents/AEROSP623/project1/test2.gri', rMesh['vert'], rMesh['elem'], rMesh['bounds'], rMesh['Bname'])
-#M2 = readgri('/home/curtis/Documents/UMich/Courses/AEROSP623/project1/test2.gri')
-#plotmesh(M2, [])
-#plotmesh(rMesh, []);
-#rrMesh = globalRefine(rMesh)
-#plotmesh(rrMesh, []);
-#rrrMesh = globalRefine(rrMesh)
-#plotmesh(rrrMesh, []);
+M = readgri('/home/curtis/Documents/UMich/Courses/AEROSP623/project1/mesh_refined.gri')
+plotmesh(M)
+rM = globalRefine(M)
+plotmesh(rM)
+writegri('/home/curtis/Documents/UMich/Courses/AEROSP623/project1/meshGlobalRefined1.gri', rM['vert'], rM['elem'], rM['bounds'], rM['Bname'])
+rrM = globalRefine(rM)
+plotmesh(rrM)
+writegri('/home/curtis/Documents/UMich/Courses/AEROSP623/project1/meshGlobalRefined2.gri', rrM['vert'], rrM['elem'], rrM['bounds'], rrM['Bname'])
+rrrM = globalRefine(rrM)
+plotmesh(rrrM)
+writegri('/home/curtis/Documents/UMich/Courses/AEROSP623/project1/meshGlobalRefined3.gri', rrrM['vert'], rrrM['elem'], rrrM['bounds'], rrrM['Bname'])
