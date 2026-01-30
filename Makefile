@@ -5,11 +5,6 @@ INC_DIR = include
 OBJ_DIR = obj
 SRC_DIR = src
 
-PROJ_TARGET = $(BIN_DIR)/proj1_demo.exe
-PROJ_SRC    = $(SRC_DIR)/proj1_demo.cpp
-PROJ_OBJ    = $(OBJ_DIR)/proj1_demo.o
-PROJ_DEP    = $(DEP_DIR)/proj1_demo.d
-
 # Subdirecotires
 INC_SUBDIRS = $(shell find $(INC_DIR) -type d)
 SRC_SUBDIRS = $(shell find $(SRC_DIR) -type d)
