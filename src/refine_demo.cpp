@@ -71,7 +71,7 @@ int run_refine_demo(int argc, char** argv)
     };
 
     const auto [xLE, xTE] = bladeXMinMax();
-    const double xSig = 0.5;
+    const double xSig = 0.1;
 
     mesh::SizingFunction sizeFun(hMin, hMax, d0, xLE, xTE, xSig, 0.6, 2.0);
 

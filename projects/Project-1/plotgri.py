@@ -55,17 +55,16 @@ def read_scalar_field_maybe_header(path):
     return vals
 
 #-----------------------------------------------------------
-def plot_wall_distance(Mesh, dist, fname, show_mesh=True, use_log=False, clim=None):
+def plot_wall_distance(Mesh, dist, fname, show_mesh=True, use_log=True, clim=None):
     V = Mesh['V']; E = Mesh['E']
 
     if dist.shape[0] != V.shape[0]:
         raise ValueError(f"dist length {dist.shape[0]} != number of nodes {V.shape[0]}")
 
     field = dist.copy()
-    title = "Wall distance"
     if use_log:
         field = np.log10(np.maximum(field, 1e-16))
-        title = "log10(wall distance)"
+        title = "log10"
 
     fig = plt.figure(figsize=(12, 12))
     tpc = plt.tripcolor(V[:, 0], V[:, 1], E, field, shading='gouraud')
@@ -73,10 +72,10 @@ def plot_wall_distance(Mesh, dist, fname, show_mesh=True, use_log=False, clim=No
     if clim is not None:
         tpc.set_clim(clim[0], clim[1])
 
-    plt.colorbar(tpc, shrink=0.85, label=title)
+    plt.colorbar(tpc, shrink=0.85, label=None)
 
     if show_mesh:
-        plt.triplot(V[:, 0], V[:, 1], E, 'k-', linewidth=0.2)
+        plt.triplot(V[:, 0], V[:, 1], E, 'k-', linewidth=0.3)
 
     plt.axis('equal')
     plt.tight_layout()
@@ -87,44 +86,43 @@ def plot_mesh_with_blades(mesh, blade_upper, blade_lower, out_png):
     V = mesh["V"]; E = mesh["E"]
 
     fig = plt.figure(figsize=(10, 10))
-    plt.triplot(V[:,0], V[:,1], E, linewidth=0.25)
+    plt.triplot(V[:,0], V[:,1], E, linewidth=0.3, color='black', alpha=1)
     up = read_xy_txt(blade_upper)
     lo = read_xy_txt(blade_lower)
-    plt.plot(up[:,0], up[:,1], linewidth=2.0)
-    plt.plot(lo[:,0], lo[:,1], linewidth=2.0)
+    # plt.plot(up[:,0], up[:,1], linewidth=2.0)
+    # plt.plot(lo[:,0], lo[:,1], linewidth=2.0)
     plt.legend(loc="best")
     plt.axis("equal")
     plt.tight_layout()
-    plt.savefig(out_png, dpi=300)
+    plt.savefig(out_png, dpi=400)
     plt.close(fig)
 
 #-----------------------------------------------------------
 def main():
 
     base = "/home/jaehyn/CFD2/aero-623"
-    gri_file  = "/home/jaehyn/CFD2/aero-623/mesh_refined.gri"
-    dist_file = gri_file.replace(".gri", ".walldist.txt")
-    out_png   = "/home/jaehyn/CFD2/aero-623/wall_distance.png"
+    # gri_file  = "/home/jaehyn/CFD2/aero-623/mesh_refined.gri"
+    # dist_file = gri_file.replace(".gri", ".walldist.txt")
+    # out_png   = "/home/jaehyn/CFD2/aero-623/wall_distance.png"
 
-    Mesh = readgri(gri_file)
-    dist = read_scalar_field_maybe_header(dist_file)
+    # Mesh = readgri(gri_file)
+    # dist = read_scalar_field_maybe_header(dist_file)
 
-    print("Nnodes =", Mesh["V"].shape[0])
-    print("Ndist  =", dist.shape[0])
-    if dist.size:
-        print("min/max=", dist.min(), dist.max())
+    # print("Nnodes =", Mesh["V"].shape[0])
+    # print("Ndist  =", dist.shape[0])
+    # if dist.size:
+    #     print("min/max=", dist.min(), dist.max())
 
-    plot_wall_distance(Mesh, dist, out_png, show_mesh=True, use_log=False)
+    # plot_wall_distance(Mesh, dist, out_png, show_mesh=True, use_log=False)
 
-    h = np.loadtxt("mesh_refined.hnode.txt")
-    plot_wall_distance(Mesh, h, "size_function.png") # legend should be size function h
+    # h = np.loadtxt("mesh_refined.hnode.txt")
+    # plot_wall_distance(Mesh, h, "size_function.png") # legend should be size function h
     
     mesh_file = base + "/projects/Project-1/mesh_coarse.gri"  # available in sandbox
     mesh = readgri(str(mesh_file))
 
     out_png = base + "/mesh_coarse_overlay_blades.png"
     plot_mesh_with_blades(mesh, str(base + "/projects/Project-1/bladeupper.txt"), str(base + "/projects/Project-1/bladelower.txt"), str(out_png))
-
 
 if __name__ == "__main__":
     main()
