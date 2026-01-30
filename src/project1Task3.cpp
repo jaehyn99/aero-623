@@ -234,7 +234,7 @@ bool meshVerification(const std::string& GriFile, const std::vector<std::string>
         int faceL = connData.I2E[i][1];
         // std::cout << "determined elem face" << std::endl;
         // Note: Nodes are 1-based
-        int indAcross = gridData.elementGroup.NE[0][elemL-1][faceL-1];
+        // int indAcross = gridData.elementGroup.NE[0][elemL-1][faceL-1];
         int ind1, ind2;
         if (faceL == 1) {
             ind1 = gridData.elementGroup.NE[0][elemL-1][1];
@@ -265,10 +265,10 @@ bool meshVerification(const std::string& GriFile, const std::vector<std::string>
     for (int i=0;i<lenBoun;i++) {
         int elem = connData.B2E[i][0]; // element adjacent to boundary face
         int face = connData.B2E[i][1]; // boundary face's local face number within that element
-        int bgroup = connData.B2E[i][2]; // boundary index of the face
+        // int bgroup = connData.B2E[i][2]; // boundary index of the face
 
         // Note: Nodes are 1-based
-        int indAcross = gridData.elementGroup.NE[0][elem-1][face-1];
+        // int indAcross = gridData.elementGroup.NE[0][elem-1][face-1];
         int ind1, ind2;
 
         if (face == 1) {
@@ -285,7 +285,6 @@ bool meshVerification(const std::string& GriFile, const std::vector<std::string>
         }
         else {std::cout << "faceL = " << face << std::endl; throw std::runtime_error("Face index is not stored as 1-2-3 ");};
 
-        gridData.map.nodeXYZ[ind1-1][0];
         double lenSeg = sqrt(pow(gridData.map.nodeXYZ[ind2-1][0]-gridData.map.nodeXYZ[ind1-1][0],2) + pow(gridData.map.nodeXYZ[ind2-1][1]-gridData.map.nodeXYZ[ind1-1][1],2));
         connData.sideLenBoundary.emplace_back(lenSeg);
     }
