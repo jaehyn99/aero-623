@@ -217,10 +217,12 @@ CONNData readConnData(const std::vector<std::string>& filenames) {
 }
 
 bool meshVerification(const std::string& GriFile, const std::vector<std::string>& txtFiles) {
-    std::cout << "Running mesh verification"<<std::endl;
-
+    // std::cout << "Running mesh verification"<<std::endl;
+    
     GRIData gridData = readGriFile(GriFile);
     CONNData connData = readConnData(txtFiles);
+    std::cout << "Number of elements: " << gridData.map.nElemTot << std::endl;
+
     // Calculate lengths of sides for boundary and interior edges
     int lenInt = connData.In.size();
     int lenBoun = connData.Bn.size();

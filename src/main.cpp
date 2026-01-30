@@ -1,75 +1,20 @@
-// #include "GaussKronrod.h"
 #include "../include/ReadGRI.h"
 #include "../include/ReadConnData.h"
 #include "../include/project1Task3.h"
 #include <iostream>
 
+bool verificationSuite();
+
 int main(){
-    // Testing GRI input
-    /*try {
-        GRIData gridData = readGriFile("/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/test.gri");
-
-        // std::cout << "nNode: " << testData.map.nNode << std::endl;
-        // std::cout << "nElemGroup: " <<testData.map.nElemGroup << std::endl;
-        // std::cout << "Dim: " << testData.map.Dim << std::endl;
-
-        // return 0;
-        std::cout << "=== Grid Information ===" << std::endl;
-        std::cout << "Nodes: " << gridData.map.nNode << std::endl;
-        std::cout << "Element Groups: " << gridData.map.nElemTot << std::endl;
-        std::cout << "Dimensions: " << gridData.map.Dim << std::endl;
-        
-        // Access node coordinates
-        std::cout << "\n=== First 5 Node Coordinates ===" << std::endl;
-        for (int i = 0; i < gridData.map.nNode; i++) {
-            std::cout << "Node " << i << ": ";
-            std::cout << "x=" << gridData.map.nodeXYZ[i][0] << ", ";
-            std::cout << "y=" << gridData.map.nodeXYZ[i][1] << ", ";
-            std::cout << "z=" << gridData.map.nodeXYZ[i][2] << std::endl;
-        }
-        
-        // Access boundary group information
-        std::cout << "\n=== Boundary Groups ===" << std::endl;
-        for (int i = 0; i < gridData.map.nBGroup; i++) {
-            std::cout << "Group " << i << ": " << gridData.boundaryGroup.Title[i];
-            std::cout << " (Faces: " << gridData.boundaryGroup.nBFace[i] << ")" << std::endl;
-        }
-        
-        // Access element group information
-        std::cout << "\n=== Element Groups ===" << std::endl;
-        int nGroupCount = 0;
-        int iter = 0;
-        // for (int i = 0; i < gridData.map.nElemTot; i++) {
-        while (nGroupCount < gridData.map.nElemTot) {
-            std::cout << "Group " << iter << ": ";
-            std::cout << "Elements=" << gridData.elementGroup.nElem[iter] << ", ";
-            std::cout << "Order=" << gridData.elementGroup.order[iter] << ", ";
-            std::cout << "Basis=" << gridData.elementGroup.basis[iter] << std::endl;
-            iter = iter+1;
-            nGroupCount = nGroupCount+gridData.elementGroup.nElem[iter];
-        }
-        
-        // Access periodic group information
-        if (gridData.map.nPG > 0) {
-            std::cout << "\n=== Periodic Groups ===" << std::endl;
-            for (int i = 0; i < gridData.map.nPG; i++) {
-                std::cout << "Group " << i << ": ";
-                std::cout << gridData.periodicGroup.periodicity[i];
-                std::cout << " (Node pairs: " << gridData.periodicGroup.nPGNode[i] << ")" << std::endl;
-                for (int j=0;j<gridData.periodicGroup.nPGNode[i];j++) {
-                    std::cout << "x: " << gridData.periodicGroup.NP[i][j][0] << "   y: " <<gridData.periodicGroup.NP[i][j][1] << std::endl;
-                }
-            }
-        }
-        
-        return 0;
-    } catch (const std::exception& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
-        return 1;
-    } */
+    
 
 
-    // Mesh verification on test mesh
+    if (!verificationSuite()) throw std::runtime_error("Verification test(s) failed");
+}
+
+bool verificationSuite() {
+    std::cout << "Running mesh verification suite.........................." << std::endl;
+     // Mesh verification on test mesh
     std::string testGriFile = "/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/test.gri";
     std::vector<std::string> testTxtFiles = {"/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/testperiodicEdges.txt",
             "/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/testI2E.txt",
@@ -79,26 +24,58 @@ int main(){
     std::cout << "------------Mesh Verification for Test Grid------------" <<std::endl;
     meshVerification(testGriFile, testTxtFiles);
     std::cout <<std::endl;
-    
-    // Mesh verification on coarse mesh
-    std::string coarseGriFile = "/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/mesh_refined_2394.gri";
-    std::vector<std::string> coarseTxtFiles = {"/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/mesh_refined_2394periodicEdges.txt",
-            "/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/mesh_refined_2394I2E.txt",
-        "/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/mesh_refined_2394In.txt",
-    "/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/mesh_refined_2394B2E.txt",
-"/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/mesh_refined_2394Bn.txt"};
+
+// Mesh verification on coarse mesh
+    std::string coarseGriFile = "/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/mesh_coarse.gri";
+    std::vector<std::string> coarseTxtFiles = {"/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/mesh_coarseperiodicEdges.txt",
+            "/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/mesh_coarseI2E.txt",
+        "/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/mesh_coarseIn.txt",
+    "/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/mesh_coarseB2E.txt",
+"/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/mesh_coarseBn.txt"};
     std::cout << "------------Mesh Verification for Coarse Grid------------" <<std::endl;
     meshVerification(coarseGriFile, coarseTxtFiles);
     std::cout <<std::endl;
 
-    std::string refinedGriFile = "/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/mesh_refined_9576.gri";
-    std::vector<std::string> refinedtxtFiles = {"/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/mesh_refined_9576periodicEdges.txt",
-            "/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/mesh_refined_9576I2E.txt",
-        "/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/mesh_refined_9576In.txt",
-    "/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/mesh_refined_9576B2E.txt",
-"/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/mesh_refined_9576Bn.txt"};
-    std::cout << "------------Mesh Verification for Refined Grid------------" <<std::endl;
-    meshVerification(refinedGriFile, refinedtxtFiles);
+    // Mesh verification on refined mesh
+    std::string localRefinedGriFile = "/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/mesh_refined_2394.gri";
+    std::vector<std::string> localRefinedTxtFiles = {"/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/mesh_refined_2394periodicEdges.txt",
+            "/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/mesh_refined_2394I2E.txt",
+        "/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/mesh_refined_2394In.txt",
+    "/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/mesh_refined_2394B2E.txt",
+"/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/mesh_refined_2394Bn.txt"};
+    std::cout << "------------Mesh Verification for Locally Refined Grid------------" <<std::endl;
+    meshVerification(localRefinedGriFile, localRefinedTxtFiles);
     std::cout <<std::endl;
 
+    std::string refined1GriFile = "/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/meshGlobalRefined1.gri";
+    std::vector<std::string> refined1TxtFiles = {"/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/meshGlobalRefined1periodicEdges.txt",
+            "/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/meshGlobalRefined1I2E.txt",
+        "/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/meshGlobalRefined1In.txt",
+    "/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/meshGlobalRefined1B2E.txt",
+"/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/meshGlobalRefined1Bn.txt"};
+    std::cout << "------------Mesh Verification for Global Refined Grid 1 ------------" <<std::endl;
+    meshVerification(refined1GriFile, refined1TxtFiles);
+    std::cout <<std::endl;
+
+    std::string refined2GriFile = "/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/meshGlobalRefined2.gri";
+    std::vector<std::string> refined2TxtFiles = {"/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/meshGlobalRefined2periodicEdges.txt",
+            "/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/meshGlobalRefined2I2E.txt",
+        "/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/meshGlobalRefined2In.txt",
+    "/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/meshGlobalRefined2B2E.txt",
+"/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/meshGlobalRefined2Bn.txt"};
+    std::cout << "------------Mesh Verification for Global Refined Grid 2 ------------" <<std::endl;
+    meshVerification(refined2GriFile, refined2TxtFiles);
+    std::cout <<std::endl;
+
+    std::string refined3GriFile = "/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/meshGlobalRefined3.gri";
+    std::vector<std::string> refined3TxtFiles = {"/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/meshGlobalRefined3periodicEdges.txt",
+            "/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/meshGlobalRefined3I2E.txt",
+        "/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/meshGlobalRefined3In.txt",
+    "/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/meshGlobalRefined3B2E.txt",
+"/mnt/c/Users/mmaru/Desktop/AE623/Project 1/projects/Project-1/meshGlobalRefined3Bn.txt"};
+    std::cout << "------------Mesh Verification for Global Refined Grid 3 ------------" <<std::endl;
+    meshVerification(refined3GriFile, refined3TxtFiles);
+    std::cout <<std::endl;
+
+    return true;
 }
