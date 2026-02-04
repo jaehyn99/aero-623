@@ -1,4 +1,4 @@
-// Array that stores the cell average of a state on each cell
+// Array that stores the cell averages of a state on each cell
 
 #ifndef STATE_MESH_H
 #define STATE_MESH_H
