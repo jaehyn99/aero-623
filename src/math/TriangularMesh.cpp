@@ -4,8 +4,40 @@
 #include <iomanip>
 #include <iostream>
 
+TriangularMesh::Face::Face(const TriangularMesh& mesh, std::size_t pointID1, std::size_t pointID2, std::size_t nf, const std::string& title):
+    _pointID{int(pointID1), int(pointID2)},
+    _length((mesh._nodes[pointID2] - mesh._nodes[pointID1]).norm()),
+    _nf(nf),
+    _title(title)
+{}
+
 bool TriangularMesh::Face::operator==(const Face& other) const noexcept{
     return (_pointID[0] == other._pointID[0] && _pointID[1] == other._pointID[1]) || (_pointID[0] == other._pointID[1] && _pointID[1] == other._pointID[0]);
+}
+
+TriangularMesh::Element::Element(TriangularMesh& mesh, std::size_t pointID1, std::size_t pointID2, std::size_t pointID3, std::size_t ord, const std::string& basis):
+    _pointID{int(pointID1), int(pointID2), int(pointID3)}, _order(ord), _basis(basis)
+{
+    // Look if its faces have already been added to mesh._faces
+    for (std::size_t j = 0; j < 3; j++){
+        Face iface(mesh, _pointID[(j+1)%3], _pointID[(j+2)%3]);
+
+        // Assign face ID to elem and elem ID to face
+        std::size_t faceID = std::find(mesh._faces.cbegin(), mesh._faces.cend(), iface) - mesh._faces.cbegin();
+        if (faceID == mesh.numFaces()) mesh._faces.push_back(iface);
+        _faceID[j] = faceID;
+
+        Face& face = mesh.face(faceID);
+        if (face._elemID[0] == -1) face._elemID[0] = mesh.numElems()-1; // No ElemID has been updated
+        else face._elemID[1] = mesh.numElems()-1;
+    }
+
+    // Calculates area
+    double a = mesh.length(_faceID[0]);
+    double b = mesh.length(_faceID[1]);
+    double c = mesh.length(_faceID[2]);
+    double s = (a+b+c)/2;
+    _area = std::sqrt(s*(s-a)*(s-b)*(s-c));
 }
 
 TriangularMesh::TriangularMesh(const std::string& fileName){
@@ -43,7 +75,7 @@ TriangularMesh::TriangularMesh(const std::string& fileName){
             splitNextLine();
             std::size_t ind1 = std::stoi(v[0]) - 1;
             std::size_t ind2 = std::stoi(v[1]) - 1;
-            _faces.emplace_back(ind1, ind2, nf, title);
+            _faces.emplace_back(*this, ind1, ind2, nf, title);
         }
     }
 
@@ -60,20 +92,7 @@ TriangularMesh::TriangularMesh(const std::string& fileName){
             std::size_t ind1 = std::stoi(v[0]) - 1;
             std::size_t ind2 = std::stoi(v[1]) - 1;
             std::size_t ind3 = std::stoi(v[2]) - 1;
-            _elems.emplace_back(ind1, ind2, ind3, ord, basis);
-            Element& elem = _elems.back();
-
-            // Look if its faces have already been added to faces
-            for (std::size_t j = 0; j < 3; j++){
-                Face iface(elem._pointID[(j+1)%3], elem._pointID[(j+2)%3]);
-
-                // Assign face ID to elem and elem ID to face
-                std::size_t faceID = std::find(_faces.begin(), _faces.end(), iface) - _faces.begin();
-                if (faceID == _faces.size()) _faces.push_back(iface);
-                elem._faceID[j] = faceID;
-                if (_faces[faceID]._elemID[0] == -1) _faces[faceID]._elemID[0] = _elems.size()-1;
-                else _faces[faceID]._elemID[1] = _elems.size()-1;
-            }
+            _elems.emplace_back(*this, ind1, ind2, ind3, ord, basis);
         }
     }
 
@@ -88,13 +107,13 @@ TriangularMesh::TriangularMesh(const std::string& fileName){
                 splitNextLine();
                 std::size_t ind1 = std::stoi(v[0])-1;
                 std::size_t ind2 = std::stoi(v[1])-1;
-                Face left(ind1, ind2);
+                Face left(*this, ind1, ind2);
 
                 for (std::size_t j = 1; j < nPGNode; j++){
                     splitNextLine();
                     ind1 = std::stoi(v[0])-1;
                     ind2 = std::stoi(v[1])-1;
-                    Face right(ind1, ind2);
+                    Face right(*this, ind1, ind2);
 
                     // Locate the periodic faces
                     auto it1 = std::find(_faces.begin(), _faces.end(), left);
@@ -110,37 +129,44 @@ TriangularMesh::TriangularMesh(const std::string& fileName){
             }
         }
     }
-}
 
-Eigen::Vector2d TriangularMesh::vect(std::size_t faceID) const noexcept{
-    const Face& face = _faces[faceID];
-    const Eigen::Vector2d& node1 = _nodes[face._pointID[0]];
-    const Eigen::Vector2d& node2 = _nodes[face._pointID[1]];
-    return node2 - node1;
-}
+    // Update normal vectors on each edge, always pointing from L to R
+    for (Face& face: _faces){
+        // Consturct a unit normal vector
+        Eigen::Vector2d edge = _nodes[face._pointID[1]] - _nodes[face._pointID[0]];
+        face._normal = Eigen::Vector2d{-edge[1], edge[0]};
+        face._normal.normalize();
 
-double TriangularMesh::length(std::size_t faceID) const noexcept{ return vect(faceID).norm(); }
+        // Find the remaining point on the "left" element and direct normal away from it
+        int elemID = face._elemID[0];
+        const Element& elem = _elems[elemID];
+        std::size_t localFaceID = 0;
+        for (std::size_t i = 0; i < 3; i++){
+            const Face& iface = _faces[elem._faceID[i]];
+            if (face == iface){
+                localFaceID = i;
+                break;
+            }
+        }
+        const Eigen::Vector2d& p1 = _nodes[elem._pointID[localFaceID]]; // Point not on this edge
+        const Eigen::Vector2d& p2 = _nodes[elem._pointID[(localFaceID+1)%3]]; // One of the points on this edge
+        if ((p2-p1).dot(face._normal) > 0) face._normal *= -1;
 
-double TriangularMesh::area(std::size_t elemID) const noexcept{
-    const Element& elem = _elems[elemID];
-    double a = length(elem._faceID[0]);
-    double b = length(elem._faceID[1]);
-    double c = length(elem._faceID[2]);
-    double s = (a+b+c)/2;
-    return std::sqrt(s*(s-a)*(s-b)*(s-c));
+        // Check for periodic faces
+        if (face._periodicFaceID != -1 && elemID > face._periodicElemID) face._normal *= -1;
+    }
 }
 
 Eigen::Vector2d TriangularMesh::normal(std::size_t elemID, std::size_t localFaceID) const noexcept{
-    // Outward normal vector to edge #localEdgeID (0, 1, 2) of element #elemID
     const Element& elem = _elems[elemID];
-    Eigen::Vector2d edge = vect(elem._faceID[localFaceID]);
-    Eigen::Vector2d normal{-edge[1], edge[0]};
-    normal.normalize();
+    int faceID = elem._faceID[localFaceID];
+    const Face& face = _faces[faceID];
 
-    const Eigen::Vector2d& p1 = _nodes[elem._pointID[(localFaceID+1)%3]]; // One of the points on this edge
-    const Eigen::Vector2d& p2 = _nodes[elem._pointID[localFaceID]]; // Point not on this edge
-    if ((p2-p1).dot(normal) < 0) return normal;
-    return -normal;
+    Eigen::Vector2d n = face._normal;
+    if (face._elemID[1] == elemID) return -n; // on element R, revert the normal vector
+    if (face._periodicElemID == -1) return n; // on element L and not periodic, normal is correct
+    if (elemID < face._periodicElemID) return n; // still correctly pointing from L to R
+    return -n;
 }
 
 void TriangularMesh::writeGri(const std::string& fileName) const noexcept{
@@ -251,10 +277,7 @@ void TriangularMesh::writeGri(const std::string& fileName) const noexcept{
         std::size_t elemID = face._elemID[0];
         const Element& elem = _elems[elemID];
         std::size_t localFaceID = std::find(elem._faceID.cbegin(), elem._faceID.cend(), i) - elem._faceID.cbegin();
-
-        int invert = 1;
-        if (face._periodicFaceID != -1) if (elemID > face._periodicElemID) invert *= -1;
-        of << normal(elemID, localFaceID).transpose() * invert << "\n";
+        of << normal(elemID, localFaceID).transpose() << "\n";
     }
     of.close();
 
@@ -272,7 +295,7 @@ void TriangularMesh::writeGri(const std::string& fileName) const noexcept{
 
     // Areas
     of.open(fileBase + "Area.txt");
-    for (std::size_t i = 0; i < _elems.size(); i++) of << area(i) << "\n";
+    for (const Element& elem: _elems) of << elem._area << "\n";
     of.close();
 }
 
