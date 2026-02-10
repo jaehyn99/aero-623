@@ -1,7 +1,7 @@
 #pragma once
 #include "state.hpp"
 
-class Flux {
+class Normal {
 public:
     virtual State operator()(const State& uL,
                              const State& uR,
