@@ -2,30 +2,30 @@
 #include "flux.hpp"
 #include <cmath>
 
-class HLLEFlux : public Flux {
+class ROEFlux : public Flux {
 public:
     State operator()(const State& UL,
                      const State& UR,
-                     double gamma, const Normal& n) const override
+                     double gamma, n) const override
     {
         double rhoL = UL.rho;
         double rhoR = UR.rho;
 
-        double uL = UL.momX / rhoL;
-        double uR = UR.momX / rhoR;
+        double uL = uL.momX / rhoL;
+        double uR = uR.momX / rhoR;
 
-        double vL = UL.momY / rhoL;
-        double vR = UR.momY / rhoR;
+        double vL = vL.momY / rhoL;
+        double vR = vR.momY / rhoR;
 
-	double uNL = uL*n.X + vL*n.Y;
-	double uNR = uR*n.X + vR*n.Y;
+	double uNL = uL*n.x + vL*n.y;
+	double uNR = uR*n.x + vR*n.y;
 
-        double pL = (gamma - 1.0) * (UL.E - 0.5 * rhoL * (uL * uL + vL * vL));
-        double pR = (gamma - 1.0) * (UR.E - 0.5 * rhoR * (uL * uL + vR * vR));
+        double pL = (gamma - 1.0) * (uL.E - 0.5 * rhoL * vL * vL);
+        double pR = (gamma - 1.0) * (uR.E - 0.5 * rhoR * vR * vR);
 
         State FL {
-            rhoL * uNL,
-            rhoL * uNL * uL + pL*n.X,
+            rhoL * vL,
+            rhoL * vL * vL + pL,
             (uL.E + pL) * vL
         };
 
@@ -41,8 +41,8 @@ public:
         double vAvg = (std::sqrt(rhoL) * vL + std::sqrt(rhoR) * vR)
                       / (std::sqrt(rhoL) + std::sqrt(rhoR));
 
-        double EL = UL.E / rhoL;
-        double ER = UR.E / rhoR;
+        double EL = uL.E / rhoL;
+        double ER = uR.E / rhoR;
 
         double aL2 = (gamma - 1.0) * ((EL + pL) / rhoL - 0.5 * vL * vL);
         double aR2 = (gamma - 1.0) * ((ER + pR) / rhoR - 0.5 * vR * vR);
@@ -60,9 +60,9 @@ public:
         if (SR <= 0.0) return FR;
 
         return {
-            (SR * FL.rho - SL * FR.rho + SL * SR * (UR.rho - UL.rho)) / (SR - SL),
-            (SR * FL.mom - SL * FR.mom + SL * SR * (UR.mom - UL.mom)) / (SR - SL),
-            (SR * FL.E   - SL * FR.E   + SL * SR * (UR.E   - UL.E))   / (SR - SL)
+            (SR * FL.rho - SL * FR.rho + SL * SR * (uR.rho - uL.rho)) / (SR - SL),
+            (SR * FL.mom - SL * FR.mom + SL * SR * (uR.mom - uL.mom)) / (SR - SL),
+            (SR * FL.E   - SL * FR.E   + SL * SR * (uR.E   - uL.E))   / (SR - SL)
         };
     }
 };
