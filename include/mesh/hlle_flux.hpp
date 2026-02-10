@@ -25,14 +25,16 @@ public:
 
         State FL {
             rhoL * uNL,
-            rhoL * uNL * uL + pL*n.X,
-            (uL.E + pL) * vL
+            UL.momX * uNL + pL*n.X,
+            UL.momY * uNL + pL*n.Y,
+            (UL.E + pL) * uNL
         };
 
         State FR {
-            rhoR * vR,
-            rhoR * vR * vR + pR,
-            (uR.E + pR) * vR
+            rhoR * uNR,
+            UR.momX * uNL + pR*n.X,
+            UR.momY * uNL + pR*n.Y,
+            (UR.E + pR) * uNR
         };
 
         double eta2 = 0.5 * std::sqrt(rhoL * rhoR)
@@ -56,7 +58,7 @@ public:
         double SL = vAvg - dAvg;
         double SR = vAvg + dAvg;
 
-        if (SL >= 0.0) return FL;
+        if (SL >= 0.0) return FL; // Want to do masking later
         if (SR <= 0.0) return FR;
 
         return {
