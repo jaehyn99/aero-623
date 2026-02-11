@@ -1,96 +1,94 @@
 #pragma once
 #include "flux.hpp"
+#include <Eigen/Dense>
 #include <cmath>
 
 class RoeFlux : public Flux {
 public:
-    State operator()(const State& UL,
-                     const State& UR,
-                     double gamma, const Normal& n) const override
+    Eigen::Vector4d operator()(const Eigen::Vector4d& UL,
+                     const Eigen::Vector4d& UR,
+                     double gamma, const Eigen::Vector2d& n) const override
     {
-        double rhoL = UL.rho;
-        double rhoR = UR.rho;
+	double gm1 = gamma - 1.0;
 
-        double uL = UL.momX / rhoL;
-        double uR = UR.momX / rhoR;
+        double rhoL = UL(0);
+        double rhoR = UR(0);
 
-        double vL = UL.momY / rhoL;
-        double vR = UR.momY / rhoR;
+        double uL = UL(1)/rhoL;
+        double uR = UR(1)/rhoR;
 
-	double uNL = uL*n.X + vL*n.Y;
-	double uNR = uR*n.X + vR*n.Y;
+        double vL = UL(2)/rhoL;
+        double vR = UR(2)/rhoR;
 
-        double pL = (gamma - 1.0) * (UL.E - 0.5 * rhoL * (uL * uL + vL * vL));
-        double pR = (gamma - 1.0) * (UR.E - 0.5 * rhoR * (uL * uL + vR * vR));
+	double uNL = uL*n(0) + vL*n(1);
+	double uNR = uR*n(0) + vR*n(1);
 
-	double rHL = UL.E + pL;
-	double rHR = UR.E + pR;
+        double pL = gm1*(UL(3) - 0.5*rhoL*(uL*uL + vL*vL));
+        double pR = gm1*(UR(3) - 0.5*rhoR*(uR*uR + vR*vR));
 
-	double HL = rHL / rhoL;
-	double HR = rHR / rhoR;
+	double HL = (UL(3) + pL)/rhoL;
+	double HR = (UR(3) + pR)/rhoR;
 
-	double cL = std::sqrt(gamma * pL / rhoL);
-	double cR = std::sqrt(gamma * pR / rhoR);
+	double cL = std::sqrt(gamma*pL/rhoL);
+	double cR = std::sqrt(gamma*pR/rhoR);
 
-        State FL {
-            rhoL * uNL,
-            UL.momX * uNL + pL*n.X,
-            UL.momY * uNL + pL*n.Y,
-            (UL.E + pL) * uNL
-        };
+	Eigen::Matrix<double, 4, 1> FL; Eigen::Matrix<double, 4, 1> FR; 
+	Eigen::Matrix<double, 4, 1> F;
 
-        State FR {
-            rhoR * uNR,
-            UR.momX * uNL + pR*n.X,
-            UR.momY * uNL + pR*n.Y,
-            (UR.E + pR) * uNR
-        };
+	FL(0) = rhoL*uNL;
+	FL(1) = UL(1)*uNL + pL*n(0);
+	FL(2) = UL(2)*uNL + pL*n(1);
+	FL(3) = (UL(3) + pL)*uNL;
 
-	double du = UR - UL;
+	FR(0) = rhoR*uNR;
+	FR(1) = UR(1)*uNR + pR*n(0);
+	FR(2) = UR(2)*uNR + pR*n(1);
+	FR(3) = (UR(3) + pR)*uNR;
 
-	double di = std::sqrt(rR / rL);
-	double d1 = 1/(1 + di);
+	Eigen::Matrix<double, 4, 1> du = UR - UL;
+
+	double di = std::sqrt(rhoR/rhoL);
+	double d1 = 1.0/(1.0 + di);
 
 	double ui = (di*uR + uL)*d1;
 	double vi = (di*vR + vL)*d1;
 	double Hi = (di*HR + HL)*d1;
 
 	double af = 0.5*(ui*ui + vi*vi);
-	double ucp = ui*n.X + vi*n.Y;
-	double c2 = (gamma - 1)*(Hi - af);
+	double ucp = ui*n(0) + vi*n(1);
+	double c2 = gm1*(Hi - af);
 	double ci = std::sqrt(c2);
 	double ci1 = 1.0/ci;
 
-	std::vector<double> l = {ucp + ci, ucp - ci, ucp};
+	Eigen::Matrix<double, 3, 1> l;
+	l(0) = ucp + ci;
+	l(1) = ucp - ci;
+        l(2) = ucp;
 
-        double eta2 = 0.5 * std::sqrt(rhoL * rhoR)
-                      / std::pow(std::sqrt(rhoL) + std::sqrt(rhoR), 2);
+	double epsilon = 0.1*ci;
 
-        double vAvg = (std::sqrt(rhoL) * vL + std::sqrt(rhoR) * vR)
-                      / (std::sqrt(rhoL) + std::sqrt(rhoR));
+	for (int ii = 0; ii < 3; ii++) {
+		if (std::abs(l(ii)) < epsilon) {
+        		l(ii) = 0.5 * (epsilon + l(ii)*l(ii)/epsilon);
+    		} else {
+        		l(ii) = std::abs(l(ii));
+    		}
+	}
 
-        double EL = UL.E / rhoL;
-        double ER = UR.E / rhoR;
+	double s1 = 0.5*(l(0) + l(1));
+	double s2 = 0.5*(l(0) - l(1));
 
-        double aL2 = (gamma - 1.0) * ((EL + pL) / rhoL - 0.5 * vL * vL);
-        double aR2 = (gamma - 1.0) * ((ER + pR) / rhoR - 0.5 * vR * vR);
+	double G1 = gm1*(af*du(0) - ui*du(1) - vi*du(2) + du(3));
+	double G2 = -ucp*du(0) + du(1)*n(0) + du(2)*n(1);
 
-        double dAvg = std::sqrt(
-            (std::sqrt(rhoL) * aL2 + std::sqrt(rhoR) * aR2)
-            / (std::sqrt(rhoL) + std::sqrt(rhoR))
-            + eta2 * (vR - vL) * (vR - vL)
-        );
+	double C1 = G1*(s1 - l(2))*ci1*ci1 + G2*s2*ci1;
+	double C2 = G1*s2*ci1 + G2*(s1 - l(2));
 
-        double SL = vAvg - dAvg;
-        double SR = vAvg + dAvg;
+	F(0) = 0.5*(FL(0) + FR(0)) - 0.5*(l(2)*du(0) + C1);
+	F(1) = 0.5*(FL(1) + FR(1)) - 0.5*(l(2)*du(1) + C1*ui + C2*n(0));
+	F(2) = 0.5*(FL(2) + FR(2)) - 0.5*(l(2)*du(2) + C1*vi + C2*n(1));
+	F(3) = 0.5*(FL(3) + FR(3)) - 0.5*(l(2)*du(3) + C1*Hi + C2*ucp);
 
-        if (SL >= 0.0) return FL; // Want to do masking later
-        if (SR <= 0.0) return FR;
-
-        return {
-            (SR * FL.rho - SL * FR.rho + SL * SR * (UR.rho - UL.rho)) / (SR - SL),
-            (SR * FL.mom - SL * FR.mom + SL * SR * (UR.mom - UL.mom)) / (SR - SL),
-            (SR * FL.E   - SL * FR.E   + SL * SR * (UR.E   - UL.E))   / (SR - SL)
-        };
+        return F;
     }
 };
