@@ -1,10 +1,11 @@
 #pragma once
-#include "state.hpp"
+#include <Eigen/Dense>
 
 class Flux {
 public:
-    virtual State operator()(const State& uL,
-                             const State& uR,
-                             double gamma, const Normal& n) const = 0;
+    virtual Eigen::Vector4d operator()(const Eigen::Vector4d& UL,
+                     const Eigen::Vector4d& UR,
+                     double gamma, const Eigen::Vector2d& n) const = 0;
+    
     virtual ~Flux() = default;
 };
