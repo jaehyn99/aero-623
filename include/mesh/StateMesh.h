@@ -11,12 +11,19 @@ class StateMesh{
     public:
     StateMesh(std::shared_ptr<TriangularMesh> mesh); 
 
-    double& operator[](Eigen::Index i) noexcept{ return _stateMesh[i]; }
-    const double& operator[](Eigen::Index i) const noexcept{ return _stateMesh[i]; }
+    double size() const noexcept{ return _stateMesh.size(); }
+    double& operator()(Eigen::Index var, Eigen::Index elem) noexcept{ return _stateMesh(var, elem); }
+    const double& operator()(Eigen::Index var, Eigen::Index elem) const noexcept{ return _stateMesh(var, elem); }
+    Eigen::MatrixXd& matrix() noexcept{ return _stateMesh; }
+    const Eigen::MatrixXd& matrix() const noexcept{ return _stateMesh; }
+
+    StateMesh& operator=(const Eigen::MatrixXd& other);
+    StateMesh& operator=(Eigen::MatrixXd&& other);
+    std::shared_ptr<TriangularMesh> mesh() const noexcept{ return _spatialMesh; }
 
     protected:
     std::shared_ptr<TriangularMesh> _spatialMesh;
-    Eigen::ArrayXd _stateMesh;
+    Eigen::MatrixXd _stateMesh;
 };
 
 #endif
