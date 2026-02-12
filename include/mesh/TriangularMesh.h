@@ -29,6 +29,7 @@ class TriangularMesh{
         std::size_t _order;
         std::string _basis;
         double _area;
+        Eigen::Vector2d _centroid;
 
         Element(TriangularMesh& mesh, std::size_t pointID1, std::size_t pointID2, std::size_t pointID3, std::size_t ord=1, const std::string& basis="TriLagrange");
     };
@@ -53,6 +54,7 @@ class TriangularMesh{
     double length(std::size_t faceID) const noexcept{ return _faces[faceID]._length; }
     double area(std::size_t elemID) const noexcept{ return _elems[elemID]._area; }
     Eigen::Vector2d normal(std::size_t elemID, std::size_t localFaceID) const noexcept;
+    Eigen::Vector2d centroid(std::size_t elemID){ return _elems[elemID]._centroid; }
 
     void writeGri(const std::string& fileName) const noexcept;
 
