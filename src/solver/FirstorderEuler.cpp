@@ -47,7 +47,7 @@ EulerBoundaryConditions makeBoundaryConditions(const FirstorderEuler::SolverConf
     bc.Tt = (config.a0 * config.a0) / (config.gamma * config.gasConstant);
     bc.pt = config.rho0 * config.gasConstant * bc.Tt;
     bc.Vrot = config.a0;
-    return bc;
+    return EulerBoundaryConditions(bc);
 }
 
 double spectralRadius(const FirstorderEuler::Conserved& U,
