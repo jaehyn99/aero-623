@@ -8,7 +8,6 @@
 #include <algorithm>
 #include <cmath>
 #include <cctype>
-#include <fstream>
 #include <iostream>
 #include <limits>
 #include <memory>
@@ -94,7 +93,6 @@ FirstorderEuler::MeshInputs FirstorderEuler::MeshInputs::fromMeshFile(const std:
 FirstorderEuler::MeshInputs FirstorderEuler::MeshInputs::fromPrefix(const std::string& prefix) {
     MeshInputs inputs;
     inputs.meshFile = prefix + ".gri";
-    inputs.areaFile = prefix + "Area.txt";
     inputs.b2eFile = prefix + "B2E.txt";
     inputs.bnFile = prefix + "Bn.txt";
     inputs.i2eFile = prefix + "I2E.txt";
@@ -136,27 +134,18 @@ void FirstorderEuler::readMeshAndConnectivity() {
                              static_cast<std::size_t>(e._pointID[2])});
     }
 
-    readAreaFile();
-
-    buildFacesFromTriangularMesh();
-    computePerimeterFromMesh();
-}
-
-void FirstorderEuler::readAreaFile() {
-    std::ifstream areaStream(inputs_.areaFile);
-    if (!areaStream) {
-        throw std::runtime_error("Failed to open area file: " + inputs_.areaFile);
-    }
-
-    // Area.txt is treated as authoritative: area_[e] corresponds to element e.
     area_.clear();
-    double ai = 0.0;
-    while (areaStream >> ai) {
+    area_.reserve(static_cast<std::size_t>(triMesh_->numElems()));
+    for (std::size_t i = 0; i < static_cast<std::size_t>(triMesh_->numElems()); ++i) {
+        const double ai = triMesh_->area(i);
         if (ai <= 0.0) {
-            throw std::runtime_error("Area file contains non-positive value.");
+            throw std::runtime_error("TriangularMesh area is non-positive.");
         }
         area_.push_back(ai);
     }
+
+    buildFacesFromTriangularMesh();
+    computePerimeterFromMesh();
 }
 
 void FirstorderEuler::buildFacesFromTriangularMesh() {
@@ -256,7 +245,7 @@ void FirstorderEuler::validateLoadedArrays() const {
         throw std::runtime_error("Mesh must contain nodes and elements.");
     }
     if (area_.size() != elements_.size()) {
-        throw std::runtime_error("Area.txt entry count must equal number of elements in .gri.");
+        throw std::runtime_error("TriangularMesh area count must equal number of elements.");
     }
 
     for (const auto& f : interiorFaces_) {

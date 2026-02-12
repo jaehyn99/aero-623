@@ -41,7 +41,6 @@ public:
 
     struct MeshInputs {
         std::string meshFile;
-        std::string areaFile;
         std::string b2eFile;
         std::string bnFile;
         std::string i2eFile;
@@ -111,7 +110,6 @@ public:
 private:
     // Part 1: read mesh and build solver-facing arrays.
     void readMeshAndConnectivity();
-    void readAreaFile();
     void buildFacesFromTriangularMesh();
     void computePerimeterFromMesh();
 

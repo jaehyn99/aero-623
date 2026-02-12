@@ -12,7 +12,7 @@ This document mirrors the comments from `FirstorderEuler.cpp` and splits the wor
    - interior edge: `(elemL, faceL, elemR, faceR, normal, length)`
    - boundary edge: `(elem, localFace, groupId, bcType, normal, length)`
 3. **Use `TriangularMesh` to parse `.gri` once** and derive element/face connectivity, normals, lengths, and periodic pairing directly from that mesh object.
-4. **Read `Area.txt` only as authoritative per-element area** (`Area[e]`), and keep validation optional via `validateMeshOnLoad` for debugging.
+4. **Use `TriangularMesh` element area directly** for per-element area (`Area[e]`) and keep validation optional via `validateMeshOnLoad` for debugging.
 
 ## Part 2 — Primitive/conservative conversion utilities
 
@@ -135,16 +135,16 @@ Keep post-processing decoupled from the solver kernel for maintainability.
 
 
 
-## Why use `TriangularMesh` + one area sidecar?
+## Why use `TriangularMesh` as the single geometry source?
 
 Short answer: yes, this is simpler and keeps the Euler solver focused.
 
 - `TriangularMesh` already gives nodes, elements, faces, normals, lengths, and periodic relationships from `.gri`.
 - `FirstorderEuler` now builds `interiorFaces_` and `boundaryFaces_` from that object instead of manually parsing `I2E/B2E/In/Bn/periodicEdges`.
-- We still read `Area.txt` because you explicitly want area to come from the generated sidecar, not recomputed geometry.
+- We now use `TriangularMesh::area(i)` directly, same as faces/normals/connectivity, to keep mesh data flow uniform.
 - The marching loop still uses compact in-memory arrays for speed and clarity.
 
-So the workflow becomes: **read `.gri` via `TriangularMesh` + read `Area.txt` + build solver arrays once**.
+So the workflow becomes: **read `.gri` via `TriangularMesh` once + build solver arrays once**.
 
 
 ## Run modes now exposed in `FirstorderEuler`
