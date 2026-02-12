@@ -1,7 +1,7 @@
 #include <iostream>
 #include <Eigen/Dense>
-#include "mesh/roe_flux.hpp"
-#include "mesh/hlle_flux.hpp"
+#include "solver/roe_flux.hpp"
+#include "solver/hlle_flux.hpp"
 
 int main() {
 	RoeFlux roe;
