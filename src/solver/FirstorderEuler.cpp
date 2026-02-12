@@ -158,17 +158,26 @@ void FirstorderEuler::buildFacesFromTriangularMesh() {
     periodicEdges_.clear();
 
     std::unordered_map<std::string, std::size_t> groupFromTitle;
+    const auto findLocalFace = [&](std::size_t elemID, int faceID) -> std::size_t {
+        const auto& faceIDs = triMesh_->elem(elemID)._faceID;
+        const auto it = std::find(faceIDs.begin(), faceIDs.end(), faceID);
+        if (it == faceIDs.end()) {
+            throw std::runtime_error("Face is not found in owning element face list.");
+        }
+        return static_cast<std::size_t>(it - faceIDs.begin());
+    };
 
     for (std::size_t faceID = 0; faceID < static_cast<std::size_t>(triMesh_->numFaces()); ++faceID) {
         const auto& face = triMesh_->face(faceID);
         const bool periodic = face._periodicFaceID != -1;
-        const bool boundary = face.isBoundaryFace() && !periodic;
+        const bool boundary = (face._elemID[1] < 0 || face.isBoundaryFace()) && !periodic;
+
+        if (face._elemID[0] < 0) {
+            throw std::runtime_error("Face has invalid left element index.");
+        }
 
         const std::size_t elemL = static_cast<std::size_t>(face._elemID[0]);
-        const std::size_t localFaceL = static_cast<std::size_t>(std::find(
-            triMesh_->elem(elemL)._faceID.begin(),
-            triMesh_->elem(elemL)._faceID.end(),
-            static_cast<int>(faceID)) - triMesh_->elem(elemL)._faceID.begin());
+        const std::size_t localFaceL = findLocalFace(elemL, static_cast<int>(faceID));
 
         if (boundary) {
             const auto [it, inserted] = groupFromTitle.try_emplace(face._title, groupFromTitle.size());
@@ -191,17 +200,17 @@ void FirstorderEuler::buildFacesFromTriangularMesh() {
         std::size_t elemR = 0;
         std::size_t localFaceR = 0;
         if (periodic) {
+            if (face._periodicElemID < 0 || face._periodicFaceID < 0) {
+                throw std::runtime_error("Periodic face has invalid periodic linkage.");
+            }
             elemR = static_cast<std::size_t>(face._periodicElemID);
-            localFaceR = static_cast<std::size_t>(std::find(
-                triMesh_->elem(elemR)._faceID.begin(),
-                triMesh_->elem(elemR)._faceID.end(),
-                face._periodicFaceID) - triMesh_->elem(elemR)._faceID.begin());
+            localFaceR = findLocalFace(elemR, face._periodicFaceID);
         } else {
+            if (face._elemID[1] < 0) {
+                throw std::runtime_error("Interior face has invalid right element index.");
+            }
             elemR = static_cast<std::size_t>(face._elemID[1]);
-            localFaceR = static_cast<std::size_t>(std::find(
-                triMesh_->elem(elemR)._faceID.begin(),
-                triMesh_->elem(elemR)._faceID.end(),
-                static_cast<int>(faceID)) - triMesh_->elem(elemR)._faceID.begin());
+            localFaceR = findLocalFace(elemR, static_cast<int>(faceID));
         }
 
         if (elemR < elemL) {
