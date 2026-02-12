@@ -106,6 +106,8 @@ FirstorderEuler::FirstorderEuler(const std::string& meshFile, const std::string&
             // Apply inflow boundary condition using inflow_flux function defined from collaborators
             Flux(i, j, bn) = inflow_flux(U(i), Tt, pt, alpha)
 
+
+            
             // inflow_flux function: (*Function outside with .cpp and .h files for inflow_flux)
             // function [Fb] = inflow_flux(UI, Tt, pt, n, alpha)
             // now implemented in InflowFlux.cpp and InflowFlux.h files, which calculates the boundary flux given the interior state (UI), total temperature (Tt), total pressure (pt), outward-pointing edge normal (n), and flow angle (alpha) in radians.
