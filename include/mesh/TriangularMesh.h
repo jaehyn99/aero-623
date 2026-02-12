@@ -36,9 +36,9 @@ class TriangularMesh{
 
     TriangularMesh(const std::string& file_name);
 
-    double numNodes() const noexcept{ return _nodes.size(); }
-    double numFaces() const noexcept{ return _faces.size(); }
-    double numElems() const noexcept{ return _elems.size(); }
+    std::size_t numNodes() const noexcept{ return _nodes.size(); }
+    std::size_t numFaces() const noexcept{ return _faces.size(); }
+    std::size_t numElems() const noexcept{ return _elems.size(); }
 
     Eigen::Vector2d& node(std::size_t nodeID) noexcept{ return _nodes[nodeID]; }
     const Eigen::Vector2d& node(std::size_t nodeID) const noexcept{ return _nodes[nodeID]; }
