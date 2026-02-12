@@ -1,214 +1,522 @@
-"""
-Data structure for first order euler method
-
-Mesh: /home/jaehyn/CFD2/aero-623/projects/Project-1/mesh_refined_2394.gri
-nNode nElemTot Dim
-for i = 1:nNode
-    x(i) y(i) [z(i)]
-nBGroup
-for i = 1:nBGroup
-    nBFace(i) nf(i) [Title(i)]
-    for j = 1:nBFace(i)
-        NB(i,j,1) .. NB(i,j,nf(i))
-for i = 1:nElemGroup
-    nElem(i) Order(i) Basis(i)
-    for j = 1:nElem(i)
-        NE(i,j,1) .. NE(i,j,nn(i))
-nPG "PeriodicGroup"
-for i = 1:nPG
-    nPGNode(i) Periodicity(i)
-    for j = 1:nPGNode(i)
-        NP(i,j,1) NP(i,j,2)
-
-I2E: /home/jaehyn/CFD2/aero-623/projects/Project-1/mesh_refined_2394I2E.txt
-for i = 1:nIntFaceTot
-    elemL(i) faceL(i) elemR(i) faceR(i)
-
-B2E: /home/jaehyn/CFD2/aero-623/projects/Project-1/mesh_refined_2394B2E.txt
-for i = 1:nBFaceTot
-    elemIndex(i) nBFace(i) nBGroup(i)
-
-In: /home/jaehyn/CFD2/aero-623/projects/Project-1/mesh_refined_2394In.txt
-for  i = 1:nIntFaceTot
-    IN(x(i),y(i))
-
-Bn: /home/jaehyn/CFD2/aero-623/projects/Project-1/mesh_refined_2394Bn.txt
-for i = 1:nBFaceTot
-    BN(x(i),y(i))
-
-Area: /home/jaehyn/CFD2/aero-623/projects/Project-1/mesh_refined_2394Area.txt
-for i = 1:nElemTot
-    Area(i)
-
-Periodic Edges:
-/home/jaehyn/CFD2/aero-623/projects/Project-1/mesh_refined_2394periodicEdges.txt
-"""
-
 #include "FirstorderEuler.h"
+#include "mesh/TriangularMesh.h"
 
-FirstorderEuler::FirstorderEuler(const std::string& meshFile, const std::string& areaFile, const std::string& b2eFile, const std::string& bnFile, const std::string& i2eFile, const std::string& inFile, const std::string& periodicEdgesFile)
-    : mesh(meshFile), area(areaFile), b2e(b2eFile), bn(bnFile), i2e(i2eFile), in(inFile), periodicEdges(periodicEdgesFile) {
+// Project assumption: Eigen is available, so Roe/HLLE flux headers are used directly.
+#include "solver/hlle_flux.hpp"
+#include "solver/roe_flux.hpp"
 
-    // Input: mesh_file='mesh_refined_2394.gri', Tfinal=2.0, CFL=0.8, g=9.8, save_every=0, out_prefix='sol', ...
+#include <algorithm>
+#include <cmath>
+#include <cctype>
+#include <fstream>
+#include <iostream>
+#include <limits>
+#include <memory>
+#include <unordered_map>
+#include <string>
+#include <sstream>
+#include <stdexcept>
 
-    // Process mesh
-    choose the mesh file and read in the mesh data (nodes, elements, boundary groups, etc.)
-    // Process normals and length of edges
-        // interior-edge normals and lengths (outward for left elem, inward for right)
-        // boundary-edge normals and lengths (outward from the cell)
-    // Process areas and centroids (triangle area (positive))
-    
-    // Initialize parameters (Input parameters can be implemented as command line arguments)
-    gamma = 1.4 // Ratio of specific heats
-    rho0 = 1 // inlet stagnation density
-    a0 = 1 // inlet stagnation speed of sound
-    p0 = 1 // inlet stagnation pressure
-    alpha = 0.0 // flow angle in radians
-    pout = 1 // outlet static pressure
-    CFL = 0.8 // CFL number for time-stepping
-    Tfinal = 2.0 // final time for unsteady simulations
-    save_every = 0 // save solution every N iterations (0 for no saving)
-    out_prefix = "sol" // prefix for output files
-    M = 0.1 // initial guess for Mach number for initializing the flow field
+namespace {
 
-    // Define conservative variables (Unknown is the cell average conservative state)
-    U[] = [rho, rhou, rhov, rhoE] // Density, Momentum in x, Momentum in y, Energy
-    
-    // Initialize U everywhere from inlet stagnation conditions and guessed M =~ 0.1
-    // Initialize the flow to a uniform state obtained using the inlet conditions and a guessed Mach number of 0.1. For uniform-refinement studies, you
-    // can use the solution from a coarser mesh to initialize the state on a finer mesh.
+std::string stripExtension(const std::string& path) {
+    const std::size_t dot = path.find_last_of('.');
+    if (dot == std::string::npos) {
+        return path;
+    }
+    return path.substr(0, dot);
+}
 
-    for i = 1:nElemTot
-        u = M * a0 * cos(alpha) // x-velocity
-        v = M * a0 * sin(alpha) // y-velocity
-        T = T0 / (1 + 0.5 * (gamma - 1) * M^2) // static temperature from stagnation temperature and Mach number
-        p = p0 * (T / T0)^(gamma / (gamma - 1)) // static pressure from stagnation pressure and temperature
+std::string toLower(std::string s) {
+    for (char& c : s) {
+        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    }
+    return s;
+}
 
-        U(i, rho) = p0 / (R * T0)
-        U(i, rhou) = U(i, rho) * u
-        U(i, rhov) = U(i, rho) * v
-        U(i, rhoE) = p/ (gamma - 1) + 0.5 * U(i, rho) * (u^2 + v^2) // total energy from static pressure and kinetic energy
-    end for
 
-    // Initialize Residual and Flux arrays
-    Residual(i) = 0.0
-    Flux(i, j, bn) = 0.0 // From flux function defined from collaborators
-    Flux(i, j, in) = 0.0 // From flux function defined from collaborators
+EulerBoundaryConditions makeBoundaryConditions(const FirstorderEuler::SolverConfig& config) {
+    EulerBoundaryConditions::Config bc;
+    bc.gamma = config.gamma;
+    bc.gasConstant = config.gasConstant;
+    bc.alpha = config.alpha;
+    bc.pout = config.pout;
+    bc.rho0 = config.rho0;
 
-    // Apply boundary conditions (*Function outside with .cpp and .h files for each type of BC)
-    In the edge loop, if an edge is boundary:
-    compute U+ = UL
-    build U-=(U+,bc data,n)
-    call num_flux(U_plus, U_minus, n_hat)
+    // Total-condition defaults from existing solver config.
+    bc.Tt = (config.a0 * config.a0) / (config.gamma * config.gasConstant);
+    bc.pt = config.rho0 * config.gasConstant * bc.Tt;
+    bc.Vrot = config.a0;
+    return bc;
+}
 
-    for i = 1:nBFaceTot
-        if BN(i) == "inflow"
-            // Apply inflow boundary condition using inflow_flux function defined from collaborators
-            Flux(i, j, bn) = inflow_flux(U(i), Tt, pt, alpha)
+double spectralRadius(const FirstorderEuler::Conserved& U,
+                      const FirstorderEuler::Vec2& n,
+                      double gamma);
 
-            // inflow_flux function: (*Function outside with .cpp and .h files for inflow_flux)
-            // function [Fb] = inflow_flux(UI, Tt, pt, n, alpha)
-            // now implemented in InflowFlux.cpp and InflowFlux.h files, which calculates the boundary flux given the interior state (UI), total temperature (Tt), total pressure (pt), outward-pointing edge normal (n), and flow angle (alpha) in radians.
+Eigen::Vector4d toEigen(const FirstorderEuler::Conserved& u) {
+    return Eigen::Vector4d(u[0], u[1], u[2], u[3]);
+}
 
-        else if BN(i) == "outflow"
-            // Apply outflow boundary condition using outflow_flux function defined from collaborators
-            Flux(i, j, bn) = outflow_flux(U(i), pout)
-            
-            / outflow_flux function: (*Function outside with .cpp and .h files for outflow_flux)
-            // function [Fb] = outflow_flux(UI, pout)
-            // Vb is calculated from the Reimann invariant J+(U+), interior entropy S+ = p+/(rho+)^gamma, and the given outlet static pressure pout. The boundary flux is then calculated using the boundary state (rho_b, Vb, p_b) and the outward normal vector n.
-            // rhob = (pb/S+)^(1/gamma)
-            // Vb = [ub, vb] = J+ - 2*c_b/(gamma-1) where c_b = sqrt(gamma*pb/rhob)
-            // where Vb = Vb - (Vb dot n) * n
-            // rhoEb = pb/(gamma-1) + 0.5*rhob*dot(Vb,Vb)
-            // Fb = dot(F(Vb),n)
+FirstorderEuler::Conserved fromEigen(const Eigen::Vector4d& u) {
+    return {u(0), u(1), u(2), u(3)};
+}
 
-        else if BN(i) == "inviscid wall"
-            // Apply wall boundary condition using wall_flux function defined from collaborators
-            Flux(i, j, bn) = wall_flux(U(i))
+std::unique_ptr<Flux> makeFlux(const std::string& schemeName) {
+    const std::string name = toLower(schemeName);
+    if (name == "roe") {
+        return std::make_unique<RoeFlux>();
+    }
+    if (name == "hlle") {
+        return std::make_unique<HLLEFlux>();
+    }
+    throw std::runtime_error("Unknown flux scheme: " + schemeName + " (expected 'roe' or 'hlle').");
+}
 
-            // wall_flux function: (*Function outside with .cpp and .h files for wall_flux)
-            // wall_flux(U) = [0, pb*n_x, pb*n_y, 0]
-            // where pb = (gamma - 1) * (rhoE - 0.5 *rho sqrt(ub^2 + vb^2)^2) is the static pressure from the interior state U, and n_x and n_y are the components of the outward normal vector for the boundary edge.
-            // Vb = [ub, vb] = Vint - (Vint dot n) * n 
+double spectralRadius(const FirstorderEuler::Conserved& U,
+                      const FirstorderEuler::Vec2& n,
+                      double gamma) {
+    const double rho = std::max(1e-14, U[0]);
+    const double u = U[1] / rho;
+    const double v = U[2] / rho;
+    const double p = std::max(1e-14, (gamma - 1.0) * (U[3] - 0.5 * rho * (u * u + v * v)));
+    const double c = std::sqrt(gamma * p / rho);
+    const double un = u * n[0] + v * n[1];
+    return std::abs(un) + c;
+}
 
-        else if BN(i) == "periodic"
-            // Apply periodic boundary condition using periodic_flux function defined from collaborators
-            Flux(i, j, bn) = periodic_flux(U(i), U(periodicEdges(i)))
-    end for
+} // namespace
 
-    // Time-stepping loop (Options for global time stepping or local time stepping)
-    t = 0.0; it = 0; Rhist = []
+FirstorderEuler::MeshInputs FirstorderEuler::MeshInputs::fromMeshFile(const std::string& meshFile) {
+    return fromPrefix(stripExtension(meshFile));
+}
 
-    // Print header for convergence history
-    print(f"{'it':>6s} {'t':>10s} {'dt':>10s} {'||R||2':>12s}") 
-    
-    while (if steady: i not converged 
-           else if unsteady: i for each iteration and t < Tfinal)
-        
-        // Update U using the calculated Residual and Flux arrays
-        for i = 1:nElemTot
-            for j = 1: edgePerElem
-                // Boundary conditions imposing 
-                // Precompute boundary states
-                UL=U(iL)
-                UR=U_ghost(UL, BC data, n) // U_ghost is the ghost state built from the interior state and the boundary condition data (e.g., for wall BC, U_ghost is the mirror state across the wall)
-                Flux(i, j, bn) = flux funtion defined from collaborators for boundary edges
-                
-                // Interior flux calculation
-                UL=U(iL)
-                UR=U(iR)
-                Flux(i, j, in) = flux funtion defined from collaborators for interior edges
-                
-                // Write one function: (*Function outside with .cpp and .h files for Residual and wave speed calculation)
-                // compute_residual_and_wavespeed(mesh, U, t, bc, flux) -> (R, S)
-                // where:
-                //  residual vector per cell
-                //  accumulated wave-speed measure for CFL (e.g., sum over edges of |𝑢⃗⋅𝑛⃗|+𝑐)
-                // This is the heart of the solver and should be the only place that loops over edges.
-                Residual(i) = Residual(i) + sum(Flux(ui, u_neighbor(i,e), normal(i,e)))* edge_length(i,e) for each edge e of element i
-                P(i) = sum(edge_length(i,e) for each edge e of element i) // Perimeter of element i
-                d(i) = 2 * Area(i) / P(i) // P(i) is the perimeter of element i
-                s(i) = sum of edge(abs(s(i,e))*edge_length(i,e))/P(i)
-                deltaT_global(i) = min(CFL * d(i)) / abs(avg(s(i)))
-                deltaT_local(i) = (2 Area(i) * CFL) / (s(i) * P(i))
-            end for
-            if using global time stepping:
-                U(i) = U(i) - deltaT_global(i) / Area(i) * Residual(i)
-            else if using local time stepping:
-                U(i) = U(i) - deltaT_local(i) / Area(i) * Residual(i)
-        end for
-        
-        // Force update of U using the calculated Residual and time step size (local or global)
-        // calculate x and y force coefficients on the blade (cx, cy) which are the forces (Fx, Fy) normalized by qout*c with c = 18.804 mm 
+FirstorderEuler::MeshInputs FirstorderEuler::MeshInputs::fromPrefix(const std::string& prefix) {
+    MeshInputs inputs;
+    inputs.meshFile = prefix + ".gri";
+    inputs.areaFile = prefix + "Area.txt";
+    inputs.b2eFile = prefix + "B2E.txt";
+    inputs.bnFile = prefix + "Bn.txt";
+    inputs.i2eFile = prefix + "I2E.txt";
+    inputs.inFile = prefix + "In.txt";
+    inputs.periodicEdgesFile = prefix + "periodicEdges.txt";
+    return inputs;
+}
 
-        // Print convergence history every 5 iterations or at the final time
-        if it % 10 == 0 or t >= Tfinal:
-        Rnorm = float(np.linalg.norm(R)); Rhist.append(Rnorm)
-        print(f"{it:6d} {t:10.4e} {dt:10.4e} {Rnorm:12.4e}")
+FirstorderEuler::FirstorderEuler(MeshInputs inputs, SolverConfig config)
+    : inputs_(std::move(inputs)), config_(std::move(config)) {}
 
-        t += dt; it += 1
+void FirstorderEuler::loadInputs() {
+    readMeshAndConnectivity();
+    if (config_.validateMeshOnLoad) {
+        validateLoadedArrays();
+    }
 
-        // Check for convergence (e.g., based on residual norms or changes in U)
-        if (residualNorm < tolerance)
-            converged = true
-        end if
+    U_.assign(elements_.size(), Conserved{0.0, 0.0, 0.0, 0.0});
+    residual_.assign(elements_.size(), Conserved{0.0, 0.0, 0.0, 0.0});
+}
 
-        // Save solution every save_every iterations (if save_every > 0), and at the final time for unsteady cases
-        // if save_every and (it % save_every == 0):
-        //     writeU(f"{out_prefix}_{it:07d}.dat", U)
+void FirstorderEuler::readMeshAndConnectivity() {
+    // Simpler flow: parse .gri once with TriangularMesh and derive element/face arrays from it.
+    triMesh_ = std::make_unique<TriangularMesh>(inputs_.meshFile);
 
-    end while
+    nodes_.clear();
+    nodes_.reserve(static_cast<std::size_t>(triMesh_->numNodes()));
+    for (std::size_t i = 0; i < static_cast<std::size_t>(triMesh_->numNodes()); ++i) {
+        const auto& p = triMesh_->node(i);
+        nodes_.push_back({p[0], p[1]});
+    }
 
-// Post-processing (*python scripts for post-processing)
-// From the converged field:
-// 1. Compute Mach and entropy per cell for contour plots
-// Compute blade on blade boundary edges using boundary pressure and the given normalization
-// cp = (p - pout) / (qout) // pressure coefficient for blade on blade boundary edges
-// where qout = 0.5 * gamma * pout *Mout^2
-// where Mout^2 = 2/(gamma-1) * ((pout/p0)^((gamma-1)/gamma) - 1)
+    elements_.clear();
+    elements_.reserve(static_cast<std::size_t>(triMesh_->numElems()));
+    for (std::size_t i = 0; i < static_cast<std::size_t>(triMesh_->numElems()); ++i) {
+        const auto& e = triMesh_->elem(i);
+        elements_.push_back({static_cast<std::size_t>(e._pointID[0]),
+                             static_cast<std::size_t>(e._pointID[1]),
+                             static_cast<std::size_t>(e._pointID[2])});
+    }
 
-// 2. calculate x and y force coefficients on the blade (cx, cy) which are the forces (Fx, Fy) normalized by qout*c with c = 18.804 mm 
-// Using ground truth on values of cx and cy from a simulation with a finest mesh.
+    readAreaFile();
 
+    buildFacesFromTriangularMesh();
+    computePerimeterFromMesh();
+}
+
+void FirstorderEuler::readAreaFile() {
+    std::ifstream areaStream(inputs_.areaFile);
+    if (!areaStream) {
+        throw std::runtime_error("Failed to open area file: " + inputs_.areaFile);
+    }
+
+    // Area.txt is treated as authoritative: area_[e] corresponds to element e.
+    area_.clear();
+    double ai = 0.0;
+    while (areaStream >> ai) {
+        if (ai <= 0.0) {
+            throw std::runtime_error("Area file contains non-positive value.");
+        }
+        area_.push_back(ai);
+    }
+}
+
+void FirstorderEuler::buildFacesFromTriangularMesh() {
+    if (!triMesh_) {
+        throw std::runtime_error("TriangularMesh must be initialized before building face data.");
+    }
+
+    interiorFaces_.clear();
+    boundaryFaces_.clear();
+    periodicEdges_.clear();
+
+    std::unordered_map<std::string, std::size_t> groupFromTitle;
+
+    for (std::size_t faceID = 0; faceID < static_cast<std::size_t>(triMesh_->numFaces()); ++faceID) {
+        const auto& face = triMesh_->face(faceID);
+        const bool periodic = face._periodicFaceID != -1;
+        const bool boundary = face.isBoundaryFace() && !periodic;
+
+        const std::size_t elemL = static_cast<std::size_t>(face._elemID[0]);
+        const std::size_t localFaceL = static_cast<std::size_t>(std::find(
+            triMesh_->elem(elemL)._faceID.begin(),
+            triMesh_->elem(elemL)._faceID.end(),
+            static_cast<int>(faceID)) - triMesh_->elem(elemL)._faceID.begin());
+
+        if (boundary) {
+            const auto [it, inserted] = groupFromTitle.try_emplace(face._title, groupFromTitle.size());
+            (void)inserted;
+
+            BoundaryFace bf;
+            bf.elem = elemL;
+            bf.localFace = localFaceL;
+            bf.boundaryGroup = it->second;
+            bf.boundaryTitle = face._title;
+            bf.normal = {triMesh_->normal(elemL, localFaceL)[0], triMesh_->normal(elemL, localFaceL)[1]};
+            const auto& p0 = triMesh_->node(static_cast<std::size_t>(face._pointID[0]));
+            const auto& p1 = triMesh_->node(static_cast<std::size_t>(face._pointID[1]));
+            bf.center = {(p0[0] + p1[0]) * 0.5, (p0[1] + p1[1]) * 0.5};
+            bf.length = face._length;
+            boundaryFaces_.push_back(bf);
+            continue;
+        }
+
+        std::size_t elemR = 0;
+        std::size_t localFaceR = 0;
+        if (periodic) {
+            elemR = static_cast<std::size_t>(face._periodicElemID);
+            localFaceR = static_cast<std::size_t>(std::find(
+                triMesh_->elem(elemR)._faceID.begin(),
+                triMesh_->elem(elemR)._faceID.end(),
+                face._periodicFaceID) - triMesh_->elem(elemR)._faceID.begin());
+        } else {
+            elemR = static_cast<std::size_t>(face._elemID[1]);
+            localFaceR = static_cast<std::size_t>(std::find(
+                triMesh_->elem(elemR)._faceID.begin(),
+                triMesh_->elem(elemR)._faceID.end(),
+                static_cast<int>(faceID)) - triMesh_->elem(elemR)._faceID.begin());
+        }
+
+        if (elemR < elemL) {
+            continue;
+        }
+
+        InteriorFace inf;
+        inf.elemL = elemL;
+        inf.faceL = localFaceL;
+        inf.elemR = elemR;
+        inf.faceR = localFaceR;
+        inf.normal = {triMesh_->normal(elemL, localFaceL)[0], triMesh_->normal(elemL, localFaceL)[1]};
+        const auto& p0 = triMesh_->node(static_cast<std::size_t>(face._pointID[0]));
+        const auto& p1 = triMesh_->node(static_cast<std::size_t>(face._pointID[1]));
+        inf.center = {(p0[0] + p1[0]) * 0.5, (p0[1] + p1[1]) * 0.5};
+        inf.length = face._length;
+        interiorFaces_.push_back(inf);
+
+        if (periodic) {
+            periodicEdges_.push_back({elemL, elemR});
+        }
+    }
+}
+
+void FirstorderEuler::computePerimeterFromMesh() {
+    if (!triMesh_) {
+        throw std::runtime_error("TriangularMesh must be initialized before computing perimeter.");
+    }
+
+    perimeter_.assign(elements_.size(), 0.0);
+    for (std::size_t elemID = 0; elemID < static_cast<std::size_t>(triMesh_->numElems()); ++elemID) {
+        const auto& elem = triMesh_->elem(elemID);
+        perimeter_[elemID] = triMesh_->length(static_cast<std::size_t>(elem._faceID[0]))
+            + triMesh_->length(static_cast<std::size_t>(elem._faceID[1]))
+            + triMesh_->length(static_cast<std::size_t>(elem._faceID[2]));
+    }
+}
+
+void FirstorderEuler::validateLoadedArrays() const {
+    if (nodes_.empty() || elements_.empty()) {
+        throw std::runtime_error("Mesh must contain nodes and elements.");
+    }
+    if (area_.size() != elements_.size()) {
+        throw std::runtime_error("Area.txt entry count must equal number of elements in .gri.");
+    }
+
+    for (const auto& f : interiorFaces_) {
+        if (f.elemL >= elements_.size() || f.elemR >= elements_.size()) {
+            throw std::runtime_error("I2E element index out of range.");
+        }
+        if (f.faceL > 2 || f.faceR > 2) {
+            throw std::runtime_error("I2E local face index must be in {1,2,3} (0-based {0,1,2}).");
+        }
+    }
+
+    for (const auto& f : boundaryFaces_) {
+        if (f.elem >= elements_.size()) {
+            throw std::runtime_error("B2E element index out of range.");
+        }
+        if (f.localFace > 2) {
+            throw std::runtime_error("B2E local face index must be in {1,2,3} (0-based {0,1,2}).");
+        }
+    }
+}
+
+void FirstorderEuler::initUniformState() {
+    // Physical meaning:
+    // Start from inlet stagnation conditions (rho0, a0) plus a guessed Mach number.
+    // Convert them to one thermodynamically consistent static state (rho, u, v, p),
+    // then initialize every cell with the same conservative vector.
+    // This gives a stable and simple first iterate before edge flux updates begin.
+    const double M = config_.initialMach;
+    const double g = config_.gamma;
+    const double R = config_.gasConstant;
+    const double p0 = config_.rho0 * config_.a0 * config_.a0 / g;
+
+    const double T0 = (config_.a0 * config_.a0) / (g * R);
+    const double T = T0 / (1.0 + 0.5 * (g - 1.0) * M * M);
+    const double p = p0 * std::pow(T / T0, g / (g - 1.0));
+
+    const double u = M * config_.a0 * std::cos(config_.alpha);
+    const double v = M * config_.a0 * std::sin(config_.alpha);
+
+    const double rho = p / (R * T);
+    const double rhoE = p / (g - 1.0) + 0.5 * rho * (u * u + v * v);
+
+    for (auto& Ui : U_) {
+        Ui[0] = rho;
+        Ui[1] = rho * u;
+        Ui[2] = rho * v;
+        Ui[3] = rhoE;
+    }
+}
+
+void FirstorderEuler::advanceToConvergedOrFinalTime() {
+    advance(true);
+}
+
+void FirstorderEuler::runSteadyGlobal() {
+    config_.localTimeStepping = false;
+    resetMarchState();
+    advance(false);
+}
+
+void FirstorderEuler::runSteadyLocal() {
+    config_.localTimeStepping = true;
+    resetMarchState();
+    advance(false);
+}
+
+void FirstorderEuler::runUnsteadyGlobal() {
+    config_.localTimeStepping = false;
+    resetMarchState();
+    advance(true);
+}
+
+void FirstorderEuler::resetMarchState() {
+    time_ = 0.0;
+    iteration_ = 0;
+}
+
+void FirstorderEuler::advance(bool stopByTime) {
+    std::cout << "    it           t          dt        ||R||2\n";
+
+    while (iteration_ < config_.maxIterations && (!stopByTime || time_ < config_.finalTime)) {
+        auto edges = computeEdgeFluxesAndWaveSpeeds();
+        assembleResidualFromEdgeFluxes(edges);
+
+        double dtUsed = 0.0;
+        if (config_.localTimeStepping) {
+            auto dtLocal = computeLocalDtFromWaveSpeeds(edges);
+            dtUsed = dtLocal.empty() ? 0.0 : *std::min_element(dtLocal.begin(), dtLocal.end());
+            updateStateLocalDt(dtLocal);
+        } else {
+            dtUsed = computeGlobalDtFromWaveSpeeds(edges);
+            updateStateGlobalDt(dtUsed);
+        }
+
+        const double normR = l2Norm(residual_);
+        if (iteration_ % 10 == 0 || (stopByTime && time_ >= config_.finalTime)) {
+            std::cout << iteration_ << " " << time_ << " " << dtUsed << " " << normR << "\n";
+        }
+
+        ++iteration_;
+        time_ += dtUsed;
+
+        if (normR < config_.residualTolerance) {
+            break;
+        }
+    }
+}
+
+std::vector<FirstorderEuler::EdgeFluxContribution> FirstorderEuler::computeEdgeFluxesAndWaveSpeeds() const {
+    std::vector<EdgeFluxContribution> edges;
+    edges.reserve(interiorFaces_.size() + boundaryFaces_.size());
+
+    const auto flux = makeFlux(config_.fluxScheme);
+    const EulerBoundaryConditions bcModel = makeBoundaryConditions(config_);
+
+    for (const auto& f : interiorFaces_) {
+        const Conserved& UL = U_.at(f.elemL);
+        const Conserved& UR = U_.at(f.elemR);
+
+        const Eigen::Vector2d n(f.normal[0], f.normal[1]);
+        const Conserved F = fromEigen((*flux)(toEigen(UL), toEigen(UR), config_.gamma, n));
+
+        EdgeFluxContribution edge;
+        edge.ownerElem = f.elemL;
+        edge.neighborElem = f.elemR;
+        edge.normal = f.normal;
+        edge.edgeLength = f.length;
+        edge.flux = F;
+        edge.spectralRadius = std::max(spectralRadius(UL, f.normal, config_.gamma),
+                                       spectralRadius(UR, f.normal, config_.gamma));
+        edges.push_back(edge);
+    }
+
+    // Boundary condition imposition happens here via ghost-state construction.
+    for (const auto& f : boundaryFaces_) {
+        const Conserved& UL = U_.at(f.elem);
+        EulerBoundaryConditions::Type kind = EulerBoundaryConditions::typeFromCurveTitle(f.boundaryTitle);
+
+        // For unsteady inflow support, switch inflow types by runtime mode convention.
+        if (kind == EulerBoundaryConditions::Type::InflowSteady
+            && !config_.localTimeStepping
+            && config_.finalTime < 1e11) {
+            kind = EulerBoundaryConditions::Type::InflowUnsteady;
+        }
+
+        EulerBoundaryConditions::Context ctx;
+        ctx.time = time_;
+        ctx.faceCenter = f.center;
+        const Conserved UR = bcModel.boundaryState(kind, UL, f.normal, ctx);
+
+        const Eigen::Vector2d n(f.normal[0], f.normal[1]);
+        const Conserved F = fromEigen((*flux)(toEigen(UL), toEigen(UR), config_.gamma, n));
+
+        EdgeFluxContribution edge;
+        edge.ownerElem = f.elem;
+        edge.neighborElem = f.elem;
+        edge.normal = f.normal;
+        edge.edgeLength = f.length;
+        edge.flux = F;
+        edge.spectralRadius = std::max(spectralRadius(UL, f.normal, config_.gamma),
+                                       spectralRadius(UR, f.normal, config_.gamma));
+        edges.push_back(edge);
+    }
+
+    return edges;
+}
+
+void FirstorderEuler::assembleResidualFromEdgeFluxes(const std::vector<EdgeFluxContribution>& edges) {
+    for (auto& R : residual_) {
+        for (double& x : R) {
+            x = 0.0;
+        }
+    }
+
+    for (const auto& edge : edges) {
+        auto& RL = residual_.at(edge.ownerElem);
+        for (std::size_t k = 0; k < RL.size(); ++k) {
+            RL[k] += edge.edgeLength * edge.flux[k];
+        }
+
+        if (edge.neighborElem != edge.ownerElem) {
+            auto& RR = residual_.at(edge.neighborElem);
+            for (std::size_t k = 0; k < RR.size(); ++k) {
+                RR[k] -= edge.edgeLength * edge.flux[k];
+            }
+        }
+    }
+}
+
+double FirstorderEuler::computeGlobalDtFromWaveSpeeds(const std::vector<EdgeFluxContribution>& edges) const {
+    if (U_.empty()) {
+        return 0.0;
+    }
+
+    if (edges.empty()) {
+        const double minArea = *std::min_element(area_.begin(), area_.end());
+        return std::max(1e-12, config_.cfl * minArea);
+    }
+
+    double sumS = 0.0;
+    for (const auto& edge : edges) {
+        sumS += std::abs(edge.spectralRadius) * edge.edgeLength;
+    }
+
+    const double avgS = sumS / static_cast<double>(edges.size());
+    const double minDiameter = [&]() {
+        double d = std::numeric_limits<double>::max();
+        for (std::size_t i = 0; i < area_.size(); ++i) {
+            d = std::min(d, 2.0 * area_[i] / std::max(1e-12, perimeter_[i]));
+        }
+        return d;
+    }();
+
+    return config_.cfl * minDiameter / std::max(1e-12, avgS);
+}
+
+std::vector<double> FirstorderEuler::computeLocalDtFromWaveSpeeds(const std::vector<EdgeFluxContribution>& edges) const {
+    std::vector<double> dt(area_.size(), 1e-3);
+    if (edges.empty()) {
+        return dt;
+    }
+
+    std::vector<double> edgeSpeedWeighted(area_.size(), 0.0);
+    for (const auto& edge : edges) {
+        edgeSpeedWeighted[edge.ownerElem] += std::abs(edge.spectralRadius) * edge.edgeLength;
+        if (edge.neighborElem != edge.ownerElem) {
+            edgeSpeedWeighted[edge.neighborElem] += std::abs(edge.spectralRadius) * edge.edgeLength;
+        }
+    }
+
+    for (std::size_t i = 0; i < area_.size(); ++i) {
+        dt[i] = 2.0 * area_[i] * config_.cfl / std::max(1e-12, edgeSpeedWeighted[i]);
+    }
+    return dt;
+}
+
+void FirstorderEuler::updateStateGlobalDt(double dt) {
+    for (std::size_t i = 0; i < U_.size(); ++i) {
+        const double scale = dt / area_[i];
+        for (std::size_t k = 0; k < U_[i].size(); ++k) {
+            U_[i][k] -= scale * residual_[i][k];
+        }
+    }
+}
+
+void FirstorderEuler::updateStateLocalDt(const std::vector<double>& dtLocal) {
+    for (std::size_t i = 0; i < U_.size(); ++i) {
+        const double scale = dtLocal[i] / area_[i];
+        for (std::size_t k = 0; k < U_[i].size(); ++k) {
+            U_[i][k] -= scale * residual_[i][k];
+        }
+    }
+}
+
+double FirstorderEuler::l2Norm(const std::vector<Conserved>& values) {
+    double acc = 0.0;
+    for (const auto& vi : values) {
+        for (double x : vi) {
+            acc += x * x;
+        }
+    }
+    return std::sqrt(acc);
 }
