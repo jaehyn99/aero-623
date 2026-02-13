@@ -1,6 +1,8 @@
 #include "TriangularMesh.h"
 #include <algorithm>
+#include <deque>
 #include <fstream>
+#include <functional>
 #include <iomanip>
 #include <iostream>
 
@@ -16,7 +18,10 @@ bool TriangularMesh::Face::operator==(const Face& other) const noexcept{
 }
 
 TriangularMesh::Element::Element(TriangularMesh& mesh, std::size_t pointID1, std::size_t pointID2, std::size_t pointID3, std::size_t ord, const std::string& basis):
-    _pointID{int(pointID1), int(pointID2), int(pointID3)}, _order(ord), _basis(basis)
+    _pointID{int(pointID1), int(pointID2), int(pointID3)},
+    _order(ord),
+    _basis(basis),
+    _centroid((mesh.node(pointID1) + mesh.node(pointID2) + mesh.node(pointID3))/3)
 {
     // Look if its faces have already been added to mesh._faces
     for (std::size_t j = 0; j < 3; j++){
@@ -38,6 +43,7 @@ TriangularMesh::Element::Element(TriangularMesh& mesh, std::size_t pointID1, std
     double c = mesh.length(_faceID[2]);
     double s = (a+b+c)/2;
     _area = std::sqrt(s*(s-a)*(s-b)*(s-c));
+
 }
 
 TriangularMesh::TriangularMesh(const std::string& fileName){
@@ -96,39 +102,73 @@ TriangularMesh::TriangularMesh(const std::string& fileName){
         }
     }
 
-    // Periodic boundaries
-    splitNextLine();
-    if (v.size() > 0){
-        std::size_t nPG = std::stoi(v[0]);
-        for (std::size_t i = 0; i < nPG; i++){
-            splitNextLine();
-            std::size_t nPGNode = std::stoi(v[0]);
-            if (nPGNode >= 2){
-                splitNextLine();
-                std::size_t ind1 = std::stoi(v[0])-1;
-                std::size_t ind2 = std::stoi(v[1])-1;
-                Face left(*this, ind1, ind2);
-
-                for (std::size_t j = 1; j < nPGNode; j++){
-                    splitNextLine();
-                    ind1 = std::stoi(v[0])-1;
-                    ind2 = std::stoi(v[1])-1;
-                    Face right(*this, ind1, ind2);
-
-                    // Locate the periodic faces
-                    auto it1 = std::find(_faces.begin(), _faces.end(), left);
-                    auto it2 = std::find(_faces.begin(), _faces.end(), right);
-                    it1->_periodicFaceID = it2 - _faces.cbegin();
-                    it1->_periodicElemID = it2->_elemID[0];
-
-                    it2->_periodicFaceID = it1 - _faces.cbegin();
-                    it2->_periodicElemID = it1->_elemID[0];
-
-                    left = right;
-                }
-            }
-        }
+    // Periodic boundaries, manually, only works on this one mesh
+    std::deque<std::reference_wrapper<Face>> curve2Faces, curve4Faces, curve6Faces, curve8Faces;
+    for (Face& face: _faces){
+        if (face._title == "Curve2") curve2Faces.push_back(std::ref(face));
+        else if (face._title == "Curve4") curve4Faces.push_front(std::ref(face));
+        else if (face._title == "Curve6") curve6Faces.push_back(std::ref(face));
+        else if (face._title == "Curve8") curve8Faces.push_front(std::ref(face));
     }
+
+    // Matching curve2 and curve4
+    for (std::size_t i = 0; i < curve2Faces.size(); i++){
+        Face& curve2Face = curve2Faces[i].get();
+        Face& curve4Face = curve4Faces[i].get();
+        std::size_t curve2ID = std::find(_faces.cbegin(), _faces.cend(), curve2Face) - _faces.cbegin();
+        std::size_t curve4ID = std::find(_faces.cbegin(), _faces.cend(), curve4Face) - _faces.cbegin();
+
+        curve2Face._periodicFaceID = curve4ID;
+        curve4Face._periodicFaceID = curve2ID;
+        curve2Face._periodicElemID = curve4Face._elemID[0];
+        curve4Face._periodicElemID = curve2Face._elemID[0];
+    }
+
+    // Matching curve6 and curve8
+    for (std::size_t i = 0; i < curve6Faces.size(); i++){
+        Face& curve6Face = curve6Faces[i].get();
+        Face& curve8Face = curve8Faces[i].get();
+        std::size_t curve6ID = std::find(_faces.cbegin(), _faces.cend(), curve6Face) - _faces.cbegin();
+        std::size_t curve8ID = std::find(_faces.cbegin(), _faces.cend(), curve8Face) - _faces.cbegin();
+
+        curve6Face._periodicFaceID = curve8ID;
+        curve8Face._periodicFaceID = curve6ID;
+        curve6Face._periodicElemID = curve8Face._elemID[0];
+        curve8Face._periodicElemID = curve6Face._elemID[0];
+    }
+
+    // splitNextLine();
+    // if (v.size() > 0){
+    //     std::size_t nPG = std::stoi(v[0]);
+    //     for (std::size_t i = 0; i < nPG; i++){
+    //         splitNextLine();
+    //         std::size_t nPGNode = std::stoi(v[0]);
+    //         if (nPGNode >= 2){
+    //             splitNextLine();
+    //             std::size_t ind1 = std::stoi(v[0])-1;
+    //             std::size_t ind2 = std::stoi(v[1])-1;
+    //             Face left(*this, ind1, ind2);
+
+    //             for (std::size_t j = 1; j < nPGNode; j++){
+    //                 splitNextLine();
+    //                 ind1 = std::stoi(v[0])-1;
+    //                 ind2 = std::stoi(v[1])-1;
+    //                 Face right(*this, ind1, ind2);
+
+    //                 // Locate the periodic faces
+    //                 auto it1 = std::find(_faces.begin(), _faces.end(), left);
+    //                 auto it2 = std::find(_faces.begin(), _faces.end(), right);
+    //                 it1->_periodicFaceID = it2 - _faces.cbegin();
+    //                 it1->_periodicElemID = it2->_elemID[0];
+
+    //                 it2->_periodicFaceID = it1 - _faces.cbegin();
+    //                 it2->_periodicElemID = it1->_elemID[0];
+
+    //                 left = right;
+    //             }
+    //         }
+    //     }
+    // }
 
     // Update normal vectors on each edge, always pointing from L to R
     for (Face& face: _faces){
