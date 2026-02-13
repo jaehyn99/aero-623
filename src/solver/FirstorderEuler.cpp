@@ -68,13 +68,19 @@ std::unique_ptr<Flux> makeFlux(const std::string& schemeName) {
 double spectralRadius(const FirstorderEuler::Conserved& U,
                       const FirstorderEuler::Vec2& n,
                       double gamma) {
+    for (double x : U) {
+        if (!std::isfinite(x)) {
+            return 0.0;
+        }
+    }
     const double rho = std::max(1e-14, U[0]);
     const double u = U[1] / rho;
     const double v = U[2] / rho;
     const double p = std::max(1e-14, (gamma - 1.0) * (U[3] - 0.5 * rho * (u * u + v * v)));
     const double c = std::sqrt(gamma * p / rho);
     const double un = u * n[0] + v * n[1];
-    return std::abs(un) + c;
+    const double s = std::abs(un) + c;
+    return std::isfinite(s) ? s : 0.0;
 }
 
 } // namespace
@@ -363,13 +369,23 @@ void FirstorderEuler::advance(bool stopByTime) {
             updateStateGlobalDt(dtUsed);
         }
 
+        if (!std::isfinite(dtUsed) || dtUsed <= 0.0) {
+            throw std::runtime_error("Computed non-finite/invalid dt.");
+        }
+
         const double normR = l2Norm(residual_);
+        if (!std::isfinite(normR)) {
+            throw std::runtime_error("Residual norm became non-finite (NaN/Inf).\n"
+                                     "Try smaller CFL or verify BC/mesh consistency.");
+        }
         if (iteration_ % 10 == 0 || (stopByTime && time_ >= config_.finalTime)) {
             std::cout << iteration_ << " " << time_ << " " << dtUsed << " " << normR << "\n";
         }
 
         ++iteration_;
-        time_ += dtUsed;
+        if (stopByTime) {
+            time_ += dtUsed;
+        }
 
         if (normR < config_.residualTolerance) {
             break;
@@ -469,11 +485,16 @@ double FirstorderEuler::computeGlobalDtFromWaveSpeeds(const std::vector<EdgeFlux
     }
 
     double sumS = 0.0;
+    std::size_t validCount = 0;
     for (const auto& edge : edges) {
-        sumS += std::abs(edge.spectralRadius) * edge.edgeLength;
+        const double s = std::abs(edge.spectralRadius) * edge.edgeLength;
+        if (std::isfinite(s) && s > 0.0) {
+            sumS += s;
+            ++validCount;
+        }
     }
 
-    const double avgS = sumS / static_cast<double>(edges.size());
+    const double avgS = (validCount > 0) ? (sumS / static_cast<double>(validCount)) : 0.0;
     const double minDiameter = [&]() {
         double d = std::numeric_limits<double>::max();
         for (std::size_t i = 0; i < area_.size(); ++i) {
@@ -482,7 +503,9 @@ double FirstorderEuler::computeGlobalDtFromWaveSpeeds(const std::vector<EdgeFlux
         return d;
     }();
 
-    return config_.cfl * minDiameter / std::max(1e-12, avgS);
+    const double dtRaw = config_.cfl * minDiameter / std::max(1e-12, avgS);
+    const double dtMax = std::max(1e-8, config_.cfl * minDiameter);
+    return std::max(1e-12, std::min(dtRaw, dtMax));
 }
 
 std::vector<double> FirstorderEuler::computeLocalDtFromWaveSpeeds(const std::vector<EdgeFluxContribution>& edges) const {
@@ -493,14 +516,21 @@ std::vector<double> FirstorderEuler::computeLocalDtFromWaveSpeeds(const std::vec
 
     std::vector<double> edgeSpeedWeighted(area_.size(), 0.0);
     for (const auto& edge : edges) {
-        edgeSpeedWeighted[edge.ownerElem] += std::abs(edge.spectralRadius) * edge.edgeLength;
+        const double s = std::abs(edge.spectralRadius) * edge.edgeLength;
+        if (!std::isfinite(s) || s <= 0.0) {
+            continue;
+        }
+        edgeSpeedWeighted[edge.ownerElem] += s;
         if (edge.neighborElem != edge.ownerElem) {
-            edgeSpeedWeighted[edge.neighborElem] += std::abs(edge.spectralRadius) * edge.edgeLength;
+            edgeSpeedWeighted[edge.neighborElem] += s;
         }
     }
 
     for (std::size_t i = 0; i < area_.size(); ++i) {
-        dt[i] = 2.0 * area_[i] * config_.cfl / std::max(1e-12, edgeSpeedWeighted[i]);
+        const double dchar = 2.0 * area_[i] / std::max(1e-12, perimeter_[i]);
+        const double dtMax = std::max(1e-8, config_.cfl * dchar);
+        const double dtRaw = 2.0 * area_[i] * config_.cfl / std::max(1e-12, edgeSpeedWeighted[i]);
+        dt[i] = std::max(1e-12, std::min(dtRaw, dtMax));
     }
     return dt;
 }
@@ -527,6 +557,9 @@ double FirstorderEuler::l2Norm(const std::vector<Conserved>& values) {
     double acc = 0.0;
     for (const auto& vi : values) {
         for (double x : vi) {
+            if (!std::isfinite(x)) {
+                return std::numeric_limits<double>::infinity();
+            }
             acc += x * x;
         }
     }
