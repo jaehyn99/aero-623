@@ -137,11 +137,20 @@ void FirstorderEuler::buildFacesFromTriangularMesh() {
     periodicEdges_.clear();
 
     std::unordered_map<std::string, std::size_t> groupFromTitle;
-    const auto findLocalFace = [&](std::size_t elemID, int faceID) -> std::size_t {
+    const auto findLocalFace = [&](std::size_t elemID,
+                                   int faceID,
+                                   std::size_t globalFaceID,
+                                   const char* side) -> std::size_t {
         const auto& faceIDs = triMesh_->elem(elemID)._faceID;
         const auto it = std::find(faceIDs.begin(), faceIDs.end(), faceID);
         if (it == faceIDs.end()) {
-            throw std::runtime_error("Face is not found in owning element face list.");
+            std::ostringstream oss;
+            oss << "Face-to-element mapping error on " << side
+                << " side: globalFaceID=" << globalFaceID
+                << ", requestedFaceID=" << faceID
+                << ", elemID=" << elemID
+                << ", elemFaceIDs=[" << faceIDs[0] << "," << faceIDs[1] << "," << faceIDs[2] << "]";
+            throw std::runtime_error(oss.str());
         }
         return static_cast<std::size_t>(it - faceIDs.begin());
     };
@@ -156,7 +165,7 @@ void FirstorderEuler::buildFacesFromTriangularMesh() {
         }
 
         const std::size_t elemL = static_cast<std::size_t>(face._elemID[0]);
-        const std::size_t localFaceL = findLocalFace(elemL, static_cast<int>(faceID));
+        const std::size_t localFaceL = findLocalFace(elemL, static_cast<int>(faceID), faceID, "left");
 
         if (boundary) {
             const auto [it, inserted] = groupFromTitle.try_emplace(face._title, groupFromTitle.size());
@@ -183,13 +192,13 @@ void FirstorderEuler::buildFacesFromTriangularMesh() {
                 throw std::runtime_error("Periodic face has invalid periodic linkage.");
             }
             elemR = static_cast<std::size_t>(face._periodicElemID);
-            localFaceR = findLocalFace(elemR, face._periodicFaceID);
+            localFaceR = findLocalFace(elemR, face._periodicFaceID, faceID, "right-periodic");
         } else {
             if (face._elemID[1] < 0) {
                 throw std::runtime_error("Interior face has invalid right element index.");
             }
             elemR = static_cast<std::size_t>(face._elemID[1]);
-            localFaceR = findLocalFace(elemR, static_cast<int>(faceID));
+            localFaceR = findLocalFace(elemR, static_cast<int>(faceID), faceID, "right-interior");
         }
 
         if (elemR < elemL) {
