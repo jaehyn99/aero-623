@@ -41,9 +41,12 @@ int main(int argc, char** argv) {
     }
 
     try {
-        FirstorderEuler::MeshInputs inputs = meshFile.empty()
-            ? FirstorderEuler::MeshInputs::fromPrefix(meshPrefix)
-            : FirstorderEuler::MeshInputs::fromMeshFile(meshFile);
+        if (meshFile.empty()) {
+            meshFile = meshPrefix + ".gri";
+        }
+
+        FirstorderEuler::MeshInputs inputs;
+        inputs.meshFile = meshFile;
 
         FirstorderEuler::SolverConfig cfg;
         if (mode == "steady-global") {

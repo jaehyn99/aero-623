@@ -18,13 +18,6 @@
 
 namespace {
 
-std::string stripExtension(const std::string& path) {
-    const std::size_t dot = path.find_last_of('.');
-    if (dot == std::string::npos) {
-        return path;
-    }
-    return path.substr(0, dot);
-}
 
 std::string toLower(std::string s) {
     for (char& c : s) {
@@ -86,20 +79,6 @@ double spectralRadius(const FirstorderEuler::Conserved& U,
 
 } // namespace
 
-FirstorderEuler::MeshInputs FirstorderEuler::MeshInputs::fromMeshFile(const std::string& meshFile) {
-    return fromPrefix(stripExtension(meshFile));
-}
-
-FirstorderEuler::MeshInputs FirstorderEuler::MeshInputs::fromPrefix(const std::string& prefix) {
-    MeshInputs inputs;
-    inputs.meshFile = prefix + ".gri";
-    inputs.b2eFile = prefix + "B2E.txt";
-    inputs.bnFile = prefix + "Bn.txt";
-    inputs.i2eFile = prefix + "I2E.txt";
-    inputs.inFile = prefix + "In.txt";
-    inputs.periodicEdgesFile = prefix + "periodicEdges.txt";
-    return inputs;
-}
 
 FirstorderEuler::FirstorderEuler(MeshInputs inputs, SolverConfig config)
     : inputs_(std::move(inputs)), config_(std::move(config)) {}

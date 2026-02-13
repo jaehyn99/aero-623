@@ -161,4 +161,4 @@ The default `main.cpp` accepts:
 - `--mode steady-local`
 - `--mode unsteady-global`
 
-with either `--mesh <file.gri>` or `--prefix <mesh_prefix>`.
+with `--mesh <file.gri>` (or `--prefix <mesh_prefix>`, which maps to `<mesh_prefix>.gri` in `main.cpp`).

@@ -41,16 +41,6 @@ public:
 
     struct MeshInputs {
         std::string meshFile;
-        std::string b2eFile;
-        std::string bnFile;
-        std::string i2eFile;
-        std::string inFile;
-        std::string periodicEdgesFile;
-
-        // Convenience helpers so callers can provide one mesh stem/prefix
-        // instead of manually wiring each sidecar file.
-        static MeshInputs fromMeshFile(const std::string& meshFile);
-        static MeshInputs fromPrefix(const std::string& prefix);
     };
 
     using Conserved = std::array<double, 4>; // [rho, rhou, rhov, rhoE]
