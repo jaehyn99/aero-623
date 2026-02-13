@@ -1,9 +1,9 @@
 #pragma once
-#include "flux.hpp"
+#include "numericalFlux.hpp"
 #include <Eigen/Dense>
 #include <cmath>
 
-class HLLEFlux : public Flux {
+class HLLEFlux : public numericalFlux {
 public:
     Eigen::Vector4d operator()(const Eigen::Vector4d& UL,
                      const Eigen::Vector4d& UR,

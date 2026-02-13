@@ -1,2 +1,2 @@
-add_executable(testHLLE flux/testHLLE.cpp)
-target_link_libraries(testHLLE core)
+add_executable(testInflow flux/testInflow.cpp)
+target_link_libraries(testInflow core)
