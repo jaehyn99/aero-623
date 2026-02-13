@@ -117,17 +117,17 @@ depend:
 .PHONY : depend
 
 #=============================================================================
-# Target rules for targets named testInflow
+# Target rules for targets named testWall
 
 # Build rule for target.
-testInflow: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 testInflow
-.PHONY : testInflow
+testWall: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 testWall
+.PHONY : testWall
 
 # fast build rule for target.
-testInflow/fast:
-	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/testInflow.dir/build.make tests/CMakeFiles/testInflow.dir/build
-.PHONY : testInflow/fast
+testWall/fast:
+	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/testWall.dir/build.make tests/CMakeFiles/testWall.dir/build
+.PHONY : testWall/fast
 
 # Help Target
 help:
@@ -137,7 +137,7 @@ help:
 	@echo "... depend"
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
-	@echo "... testInflow"
+	@echo "... testWall"
 .PHONY : help
 
 

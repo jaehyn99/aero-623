@@ -7,9 +7,9 @@
 #include "solver/wallFlux.hpp"
 
 int main() {
-	double rho0 = 1; 
-	double a0 = 1;
-	double alpha = 0;
+	double rho0 = 1.0; 
+	double a0 = 2.0;
+	double alpha = 0.25;
 	double t = 0;
 	bool transient = 0;
 	inletFlux inlet(rho0, a0, alpha, t, transient);

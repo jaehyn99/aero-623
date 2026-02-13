@@ -117,42 +117,42 @@ depend:
 .PHONY : depend
 
 # Convenience name for target.
-tests/CMakeFiles/testInflow.dir/rule:
-	cd /home/wmaxon/AEROSP623/aero-623/build && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 tests/CMakeFiles/testInflow.dir/rule
-.PHONY : tests/CMakeFiles/testInflow.dir/rule
+tests/CMakeFiles/testWall.dir/rule:
+	cd /home/wmaxon/AEROSP623/aero-623/build && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 tests/CMakeFiles/testWall.dir/rule
+.PHONY : tests/CMakeFiles/testWall.dir/rule
 
 # Convenience name for target.
-testInflow: tests/CMakeFiles/testInflow.dir/rule
-.PHONY : testInflow
+testWall: tests/CMakeFiles/testWall.dir/rule
+.PHONY : testWall
 
 # fast build rule for target.
-testInflow/fast:
-	cd /home/wmaxon/AEROSP623/aero-623/build && $(MAKE) $(MAKESILENT) -f tests/CMakeFiles/testInflow.dir/build.make tests/CMakeFiles/testInflow.dir/build
-.PHONY : testInflow/fast
+testWall/fast:
+	cd /home/wmaxon/AEROSP623/aero-623/build && $(MAKE) $(MAKESILENT) -f tests/CMakeFiles/testWall.dir/build.make tests/CMakeFiles/testWall.dir/build
+.PHONY : testWall/fast
 
-flux/testInflow.o: flux/testInflow.cpp.o
-.PHONY : flux/testInflow.o
+flux/testWall.o: flux/testWall.cpp.o
+.PHONY : flux/testWall.o
 
 # target to build an object file
-flux/testInflow.cpp.o:
-	cd /home/wmaxon/AEROSP623/aero-623/build && $(MAKE) $(MAKESILENT) -f tests/CMakeFiles/testInflow.dir/build.make tests/CMakeFiles/testInflow.dir/flux/testInflow.cpp.o
-.PHONY : flux/testInflow.cpp.o
+flux/testWall.cpp.o:
+	cd /home/wmaxon/AEROSP623/aero-623/build && $(MAKE) $(MAKESILENT) -f tests/CMakeFiles/testWall.dir/build.make tests/CMakeFiles/testWall.dir/flux/testWall.cpp.o
+.PHONY : flux/testWall.cpp.o
 
-flux/testInflow.i: flux/testInflow.cpp.i
-.PHONY : flux/testInflow.i
+flux/testWall.i: flux/testWall.cpp.i
+.PHONY : flux/testWall.i
 
 # target to preprocess a source file
-flux/testInflow.cpp.i:
-	cd /home/wmaxon/AEROSP623/aero-623/build && $(MAKE) $(MAKESILENT) -f tests/CMakeFiles/testInflow.dir/build.make tests/CMakeFiles/testInflow.dir/flux/testInflow.cpp.i
-.PHONY : flux/testInflow.cpp.i
+flux/testWall.cpp.i:
+	cd /home/wmaxon/AEROSP623/aero-623/build && $(MAKE) $(MAKESILENT) -f tests/CMakeFiles/testWall.dir/build.make tests/CMakeFiles/testWall.dir/flux/testWall.cpp.i
+.PHONY : flux/testWall.cpp.i
 
-flux/testInflow.s: flux/testInflow.cpp.s
-.PHONY : flux/testInflow.s
+flux/testWall.s: flux/testWall.cpp.s
+.PHONY : flux/testWall.s
 
 # target to generate assembly for a file
-flux/testInflow.cpp.s:
-	cd /home/wmaxon/AEROSP623/aero-623/build && $(MAKE) $(MAKESILENT) -f tests/CMakeFiles/testInflow.dir/build.make tests/CMakeFiles/testInflow.dir/flux/testInflow.cpp.s
-.PHONY : flux/testInflow.cpp.s
+flux/testWall.cpp.s:
+	cd /home/wmaxon/AEROSP623/aero-623/build && $(MAKE) $(MAKESILENT) -f tests/CMakeFiles/testWall.dir/build.make tests/CMakeFiles/testWall.dir/flux/testWall.cpp.s
+.PHONY : flux/testWall.cpp.s
 
 # Help Target
 help:
@@ -162,10 +162,10 @@ help:
 	@echo "... depend"
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
-	@echo "... testInflow"
-	@echo "... flux/testInflow.o"
-	@echo "... flux/testInflow.i"
-	@echo "... flux/testInflow.s"
+	@echo "... testWall"
+	@echo "... flux/testWall.o"
+	@echo "... flux/testWall.i"
+	@echo "... flux/testWall.s"
 .PHONY : help
 
 

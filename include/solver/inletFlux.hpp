@@ -50,7 +50,7 @@ public:
 	double uNB = JP - 2*cB/gm1;
 	double uB = MB*cB*std::cos(alpha_);
 	double vB = MB*cB*std::sin(alpha_);
-	double rhoEB = rhoB/gm1 + 0.5*rhoB*(uB*uB + vB*vB);
+	double rhoEB = pB/gm1 + 0.5*rhoB*(uB*uB + vB*vB);
 
 	Eigen::Matrix<double, 4, 1> F;
 	F(0) = rhoB*(uB*n(0) + vB*n(1));

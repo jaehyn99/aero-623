@@ -1,2 +1,2 @@
-add_executable(testInflow flux/testInflow.cpp)
-target_link_libraries(testInflow core)
+add_executable(testWall flux/testWall.cpp)
+target_link_libraries(testWall core)
