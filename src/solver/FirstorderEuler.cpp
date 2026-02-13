@@ -56,6 +56,31 @@ FirstorderEuler::Conserved fromEigen(const Eigen::Vector4d& u) {
     return {u(0), u(1), u(2), u(3)};
 }
 
+void enforcePhysicalState(FirstorderEuler::Conserved& U, double gamma) {
+    constexpr double rhoFloor = 1e-10;
+    constexpr double pFloor = 1e-10;
+
+    double rho = std::isfinite(U[0]) ? U[0] : rhoFloor;
+    rho = std::max(rhoFloor, rho);
+
+    double rhou = std::isfinite(U[1]) ? U[1] : 0.0;
+    double rhov = std::isfinite(U[2]) ? U[2] : 0.0;
+    double rhoE = std::isfinite(U[3]) ? U[3] : pFloor / (gamma - 1.0);
+
+    const double u = rhou / rho;
+    const double v = rhov / rho;
+    const double kinetic = 0.5 * rho * (u * u + v * v);
+    const double p = (gamma - 1.0) * (rhoE - kinetic);
+    if (!std::isfinite(p) || p < pFloor) {
+        rhoE = pFloor / (gamma - 1.0) + kinetic;
+    }
+
+    U[0] = rho;
+    U[1] = rhou;
+    U[2] = rhov;
+    U[3] = rhoE;
+}
+
 std::unique_ptr<Flux> makeFlux(const std::string& schemeName) {
     const std::string name = toLower(schemeName);
     if (name == "roe") {
@@ -543,6 +568,7 @@ void FirstorderEuler::updateStateGlobalDt(double dt) {
         for (std::size_t k = 0; k < U_[i].size(); ++k) {
             U_[i][k] -= scale * residual_[i][k];
         }
+        enforcePhysicalState(U_[i], config_.gamma);
     }
 }
 
@@ -552,6 +578,7 @@ void FirstorderEuler::updateStateLocalDt(const std::vector<double>& dtLocal) {
         for (std::size_t k = 0; k < U_[i].size(); ++k) {
             U_[i][k] -= scale * residual_[i][k];
         }
+        enforcePhysicalState(U_[i], config_.gamma);
     }
 }
 

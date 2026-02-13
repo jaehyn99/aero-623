@@ -163,3 +163,6 @@ The default `main.cpp` accepts:
 - `--mode unsteady-global`
 
 with `--mesh <file.gri>` (or `--prefix <mesh_prefix>`, which maps to `<mesh_prefix>.gri` in `main.cpp`).
+
+For robustness, mode defaults use conservative CFL values in `main.cpp`
+(steady-global: 0.2, steady-local: 0.5, unsteady-global: 0.2).

@@ -51,12 +51,15 @@ int main(int argc, char** argv) {
         FirstorderEuler::SolverConfig cfg;
         if (mode == "steady-global") {
             cfg.localTimeStepping = false;
+            cfg.cfl = 0.2;
             cfg.finalTime = 1e12; // Steady pseudo-time: stop by residual/maxIterations.
         } else if (mode == "steady-local") {
             cfg.localTimeStepping = true;
+            cfg.cfl = 0.5;
             cfg.finalTime = 1e12; // Steady pseudo-time: stop by residual/maxIterations.
         } else if (mode == "unsteady-global") {
             cfg.localTimeStepping = false;
+            cfg.cfl = 0.2;
             cfg.finalTime = 2.0; // Physical final time for unsteady run.
         } else {
             throw std::runtime_error("Unsupported mode: " + mode);

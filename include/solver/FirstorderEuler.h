@@ -23,12 +23,12 @@ public:
         double alpha = 0.0;
         double pout = 1.0;
 
-        double cfl = 0.5;
+        double cfl = 0.8;
         double finalTime = 2.0;
-        std::size_t maxIterations = 200;
+        std::size_t maxIterations = 20000;
         bool localTimeStepping = true;
 
-        double residualTolerance = 1e-5;
+        double residualTolerance = 1e-8;
         std::size_t saveEvery = 0;
         std::string outputPrefix = "sol";
         std::string fluxScheme = "roe"; // "roe" or "hlle"
