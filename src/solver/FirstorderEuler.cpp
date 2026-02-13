@@ -136,6 +136,27 @@ void FirstorderEuler::buildFacesFromTriangularMesh() {
     boundaryFaces_.clear();
     periodicEdges_.clear();
 
+    // Build face->owner-element mapping directly from element connectivity.
+    // This avoids depending on TriangularMesh face owner IDs, so solver-side
+    // assembly stays robust even if another branch has older mesh code.
+    std::vector<std::array<int, 2>> faceOwners(static_cast<std::size_t>(triMesh_->numFaces()), {-1, -1});
+    for (std::size_t elemID = 0; elemID < static_cast<std::size_t>(triMesh_->numElems()); ++elemID) {
+        const auto& elem = triMesh_->elem(elemID);
+        for (int fid : elem._faceID) {
+            if (fid < 0 || static_cast<std::size_t>(fid) >= faceOwners.size()) {
+                throw std::runtime_error("Element contains out-of-range face ID.");
+            }
+            auto& owners = faceOwners[static_cast<std::size_t>(fid)];
+            if (owners[0] == -1) {
+                owners[0] = static_cast<int>(elemID);
+            } else if (owners[1] == -1) {
+                owners[1] = static_cast<int>(elemID);
+            } else {
+                throw std::runtime_error("Face has more than two owner elements.");
+            }
+        }
+    }
+
     std::unordered_map<std::string, std::size_t> groupFromTitle;
     const auto findLocalFace = [&](std::size_t elemID,
                                    int faceID,
@@ -158,13 +179,14 @@ void FirstorderEuler::buildFacesFromTriangularMesh() {
     for (std::size_t faceID = 0; faceID < static_cast<std::size_t>(triMesh_->numFaces()); ++faceID) {
         const auto& face = triMesh_->face(faceID);
         const bool periodic = face._periodicFaceID != -1;
-        const bool boundary = (face._elemID[1] < 0 || face.isBoundaryFace()) && !periodic;
+        const auto& owners = faceOwners[faceID];
+        const bool boundary = (owners[1] < 0 || face.isBoundaryFace()) && !periodic;
 
-        if (face._elemID[0] < 0) {
+        if (owners[0] < 0) {
             throw std::runtime_error("Face has invalid left element index.");
         }
 
-        const std::size_t elemL = static_cast<std::size_t>(face._elemID[0]);
+        const std::size_t elemL = static_cast<std::size_t>(owners[0]);
         const std::size_t localFaceL = findLocalFace(elemL, static_cast<int>(faceID), faceID, "left");
 
         if (boundary) {
@@ -188,16 +210,20 @@ void FirstorderEuler::buildFacesFromTriangularMesh() {
         std::size_t elemR = 0;
         std::size_t localFaceR = 0;
         if (periodic) {
-            if (face._periodicElemID < 0 || face._periodicFaceID < 0) {
+            if (face._periodicFaceID < 0) {
                 throw std::runtime_error("Periodic face has invalid periodic linkage.");
             }
-            elemR = static_cast<std::size_t>(face._periodicElemID);
+            const std::size_t periodicFaceID = static_cast<std::size_t>(face._periodicFaceID);
+            if (periodicFaceID >= faceOwners.size() || faceOwners[periodicFaceID][0] < 0) {
+                throw std::runtime_error("Periodic face partner has invalid owner element.");
+            }
+            elemR = static_cast<std::size_t>(faceOwners[periodicFaceID][0]);
             localFaceR = findLocalFace(elemR, face._periodicFaceID, faceID, "right-periodic");
         } else {
-            if (face._elemID[1] < 0) {
+            if (owners[1] < 0) {
                 throw std::runtime_error("Interior face has invalid right element index.");
             }
-            elemR = static_cast<std::size_t>(face._elemID[1]);
+            elemR = static_cast<std::size_t>(owners[1]);
             localFaceR = findLocalFace(elemR, static_cast<int>(faceID), faceID, "right-interior");
         }
 
