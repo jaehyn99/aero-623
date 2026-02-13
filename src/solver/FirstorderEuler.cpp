@@ -34,6 +34,8 @@ EulerBoundaryConditions makeBoundaryConditions(const FirstorderEuler::SolverConf
     bc.alpha = config.alpha;
     bc.pout = config.pout;
     bc.rho0 = config.rho0;
+    bc.inflowCurve = config.inflowCurve;
+    bc.outflowCurve = config.outflowCurve;
 
     // Total-condition defaults from existing solver config.
     bc.Tt = (config.a0 * config.a0) / (config.gamma * config.gasConstant);
@@ -421,7 +423,7 @@ std::vector<FirstorderEuler::EdgeFluxContribution> FirstorderEuler::computeEdgeF
     // Boundary condition imposition happens here via ghost-state construction.
     for (const auto& f : boundaryFaces_) {
         const Conserved& UL = U_.at(f.elem);
-        EulerBoundaryConditions::Type kind = EulerBoundaryConditions::typeFromCurveTitle(f.boundaryTitle);
+        EulerBoundaryConditions::Type kind = bcModel.typeFromCurveTitle(f.boundaryTitle);
 
         // For unsteady inflow support, switch inflow types by runtime mode convention.
         if (kind == EulerBoundaryConditions::Type::InflowSteady

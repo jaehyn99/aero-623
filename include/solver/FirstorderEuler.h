@@ -35,6 +35,10 @@ public:
 
         double initialMach = 0.1;
 
+        // Boundary-curve role mapping (periodic remains 2<->4 and 6<->8).
+        int inflowCurve = 3;
+        int outflowCurve = 7;
+
         // Optional debug guard: validate mesh/connectivity arrays after load.
         bool validateMeshOnLoad = false;
     };

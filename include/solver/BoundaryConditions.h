@@ -36,6 +36,11 @@ public:
 
         // Outflow target pressure.
         double pout = 1.0;
+
+        // Curve-role mapping for the far-field pair.
+        // One of Curve3/Curve7 should be inflow and the other outflow.
+        int inflowCurve = 3;
+        int outflowCurve = 7;
     };
 
     struct Context {
@@ -51,7 +56,7 @@ public:
                             const Context& ctx,
                             const Conserved* periodicPartner = nullptr) const;
 
-    static Type typeFromCurveTitle(const std::string& title);
+    Type typeFromCurveTitle(const std::string& title) const;
 
 private:
     Config config_;

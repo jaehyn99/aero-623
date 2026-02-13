@@ -27,7 +27,7 @@ int parseCurveId(const std::string& title) {
 EulerBoundaryConditions::EulerBoundaryConditions(Config config)
     : config_(std::move(config)) {}
 
-EulerBoundaryConditions::Type EulerBoundaryConditions::typeFromCurveTitle(const std::string& title) {
+EulerBoundaryConditions::Type EulerBoundaryConditions::typeFromCurveTitle(const std::string& title) const {
     const int curveID = parseCurveId(title);
 
     // Project convention from mesh titles.
@@ -37,8 +37,16 @@ EulerBoundaryConditions::Type EulerBoundaryConditions::typeFromCurveTitle(const 
     if (curveID == 1 || curveID == 5) {
         return Type::WallSlip;
     }
-    if (curveID == 3 || curveID == 7) {
+    if (curveID == config_.outflowCurve) {
         return Type::OutflowSubsonic;
+    }
+    if (curveID == config_.inflowCurve) {
+        return Type::InflowSteady;
+    }
+
+    // Fallback for historical meshes using Curve3/Curve7 pair.
+    if (curveID == 3 || curveID == 7) {
+        return (curveID == 3) ? Type::InflowSteady : Type::OutflowSubsonic;
     }
     return Type::InflowSteady;
 }

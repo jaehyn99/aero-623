@@ -90,6 +90,7 @@ small BC mapper:
   are converted to interior-like interfaces by mesh preprocessing (not treated
   by the boundary ghost-state function).
 - Remaining non-periodic curves are mapped to inflow/outflow policy.
+- Curve3/Curve7 roles are configurable in `SolverConfig` (`inflowCurve`, `outflowCurve`).
 
 ## Part 6 — Single edge loop for residual + wave-speed
 
