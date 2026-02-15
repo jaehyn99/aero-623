@@ -111,6 +111,9 @@ private:
 
     // Part 2+ placeholders.
     std::vector<EdgeFluxContribution> computeEdgeFluxesAndWaveSpeeds() const;
+    Conserved computeBoundaryFluxFromModules(const BoundaryFace& f,
+                                              const Conserved& UL,
+                                              EulerBoundaryConditions::Type kind) const;
     void assembleResidualFromEdgeFluxes(const std::vector<EdgeFluxContribution>& edges);
     double computeGlobalDtFromWaveSpeeds(const std::vector<EdgeFluxContribution>& edges) const;
     std::vector<double> computeLocalDtFromWaveSpeeds(const std::vector<EdgeFluxContribution>& edges) const;
