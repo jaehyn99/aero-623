@@ -98,6 +98,9 @@ public:
     void runSteadyLocal();
     void runUnsteadyGlobal();
 
+    // Export solver state as legacy VTK (cell fields include pressure, Mach and Cp).
+    void writeSolutionVtk(const std::string& filePath) const;
+
     const std::vector<Conserved>& solution() const { return U_; }
     const std::vector<Conserved>& residual() const { return residual_; }
 
@@ -111,6 +114,9 @@ private:
 
     // Part 2+ placeholders.
     std::vector<EdgeFluxContribution> computeEdgeFluxesAndWaveSpeeds() const;
+    Conserved computeBoundaryFluxFromModules(const BoundaryFace& f,
+                                              const Conserved& UL,
+                                              EulerBoundaryConditions::Type kind) const;
     void assembleResidualFromEdgeFluxes(const std::vector<EdgeFluxContribution>& edges);
     double computeGlobalDtFromWaveSpeeds(const std::vector<EdgeFluxContribution>& edges) const;
     std::vector<double> computeLocalDtFromWaveSpeeds(const std::vector<EdgeFluxContribution>& edges) const;
