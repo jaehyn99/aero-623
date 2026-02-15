@@ -35,6 +35,7 @@ std::string toLower(std::string s) {
 }
 
 
+
 EulerBoundaryConditions makeBoundaryConditions(const FirstorderEuler::SolverConfig& config) {
     EulerBoundaryConditions::Config bc;
     bc.gamma = config.gamma;
@@ -210,6 +211,55 @@ void FirstorderEuler::buildFacesFromTriangularMesh() {
         }
     }
 
+    std::vector<int> periodicPartnerFace(static_cast<std::size_t>(triMesh_->numFaces()), -1);
+    for (std::size_t fid = 0; fid < static_cast<std::size_t>(triMesh_->numFaces()); ++fid) {
+        periodicPartnerFace[fid] = triMesh_->face(fid)._periodicFaceID;
+    }
+
+    // Fallback periodic pairing by curve titles for meshes where TriangularMesh periodic
+    // links are not populated: pair Curve2<->Curve4 and Curve6<->Curve8 by sorted center-x.
+    std::unordered_map<std::string, std::vector<std::size_t>> boundaryFacesByTitle;
+    for (std::size_t fid = 0; fid < static_cast<std::size_t>(triMesh_->numFaces()); ++fid) {
+        const auto& face = triMesh_->face(fid);
+        if (face.isBoundaryFace()) {
+            boundaryFacesByTitle[face._title].push_back(fid);
+        }
+    }
+
+    const auto pairPeriodicTitles = [&](const std::string& titleA, const std::string& titleB) {
+        const auto itA = boundaryFacesByTitle.find(titleA);
+        const auto itB = boundaryFacesByTitle.find(titleB);
+        if (itA == boundaryFacesByTitle.end() || itB == boundaryFacesByTitle.end()) {
+            return;
+        }
+        auto facesA = itA->second;
+        auto facesB = itB->second;
+        if (facesA.size() != facesB.size()) {
+            std::ostringstream oss;
+            oss << "Periodic boundary mismatch: " << titleA << " has " << facesA.size()
+                << " faces while " << titleB << " has " << facesB.size() << ".";
+            throw std::runtime_error(oss.str());
+        }
+
+        const auto centerX = [&](std::size_t fid) {
+            const auto& f = triMesh_->face(fid);
+            const auto& p0 = triMesh_->node(static_cast<std::size_t>(f._pointID[0]));
+            const auto& p1 = triMesh_->node(static_cast<std::size_t>(f._pointID[1]));
+            return 0.5 * (p0[0] + p1[0]);
+        };
+        std::sort(facesA.begin(), facesA.end(), [&](std::size_t a, std::size_t b) { return centerX(a) < centerX(b); });
+        std::sort(facesB.begin(), facesB.end(), [&](std::size_t a, std::size_t b) { return centerX(a) < centerX(b); });
+
+        for (std::size_t i = 0; i < facesA.size(); ++i) {
+            const std::size_t a = facesA[i];
+            const std::size_t b = facesB[i];
+            periodicPartnerFace[a] = static_cast<int>(b);
+            periodicPartnerFace[b] = static_cast<int>(a);
+        }
+    };
+    pairPeriodicTitles("Curve2", "Curve4");
+    pairPeriodicTitles("Curve6", "Curve8");
+
     std::unordered_map<std::string, std::size_t> groupFromTitle;
     const auto findLocalFace = [&](std::size_t elemID,
                                    int faceID,
@@ -231,7 +281,7 @@ void FirstorderEuler::buildFacesFromTriangularMesh() {
 
     for (std::size_t faceID = 0; faceID < static_cast<std::size_t>(triMesh_->numFaces()); ++faceID) {
         const auto& face = triMesh_->face(faceID);
-        const bool periodic = face._periodicFaceID != -1;
+        const bool periodic = periodicPartnerFace[faceID] != -1;
         const auto& owners = faceOwners[faceID];
         const bool boundary = (owners[1] < 0 || face.isBoundaryFace()) && !periodic;
 
@@ -263,15 +313,12 @@ void FirstorderEuler::buildFacesFromTriangularMesh() {
         std::size_t elemR = 0;
         std::size_t localFaceR = 0;
         if (periodic) {
-            if (face._periodicFaceID < 0) {
-                throw std::runtime_error("Periodic face has invalid periodic linkage.");
-            }
-            const std::size_t periodicFaceID = static_cast<std::size_t>(face._periodicFaceID);
+            const std::size_t periodicFaceID = static_cast<std::size_t>(periodicPartnerFace[faceID]);
             if (periodicFaceID >= faceOwners.size() || faceOwners[periodicFaceID][0] < 0) {
                 throw std::runtime_error("Periodic face partner has invalid owner element.");
             }
             elemR = static_cast<std::size_t>(faceOwners[periodicFaceID][0]);
-            localFaceR = findLocalFace(elemR, face._periodicFaceID, faceID, "right-periodic");
+            localFaceR = findLocalFace(elemR, static_cast<int>(periodicFaceID), faceID, "right-periodic");
         } else {
             if (owners[1] < 0) {
                 throw std::runtime_error("Interior face has invalid right element index.");
@@ -756,7 +803,8 @@ void FirstorderEuler::printBoundaryConditionSummary() const {
               << " inflow=" << nInflow
               << " outflow=" << nOutflow
               << " wall=" << nWall
-              << " periodic=" << nPeriodic << "\n";
+              << " periodic=" << nPeriodic
+              << " periodicPairs=" << periodicEdges_.size() << "\n";
     for (const auto& kv : perTitle) {
         std::cout << "[debug]   title='" << kv.first << "' faces=" << kv.second << "\n";
     }
