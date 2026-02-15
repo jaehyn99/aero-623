@@ -9,7 +9,7 @@ namespace {
 void printUsage(const char* exe) {
     std::cout << "Usage:\n"
               << "  " << exe << " --mode <steady-global|steady-local|unsteady-global> [--mesh <mesh.gri>]\n"
-              << "  " << exe << " --mode <steady-global|steady-local|unsteady-global> [--prefix <mesh_prefix>]\n"
+              << "  " << exe << " --mode <steady-global|steady-local|unsteady-global> [--prefix <mesh_prefix>] [--save-every N] [--status-every N] [--debug-every N]\n"
               << "\nExamples:\n"
               << "  " << exe << " --mode steady-local --prefix projects/Project-1/mesh_refined_2394\n"
               << "  " << exe << " --mode steady-global --mesh projects/Project-1/mesh_coarse.gri\n";
@@ -21,6 +21,9 @@ int main(int argc, char** argv) {
     std::string mode = "steady-local";
     std::string meshFile;
     std::string meshPrefix = "projects/Project-1/mesh_refined_2394";
+    std::size_t saveEvery = 10;
+    std::size_t statusEvery = 10;
+    std::size_t debugEvery = 10;
 
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
@@ -30,6 +33,12 @@ int main(int argc, char** argv) {
             meshFile = argv[++i];
         } else if (arg == "--prefix" && i + 1 < argc) {
             meshPrefix = argv[++i];
+        } else if (arg == "--save-every" && i + 1 < argc) {
+            saveEvery = static_cast<std::size_t>(std::stoull(argv[++i]));
+        } else if (arg == "--status-every" && i + 1 < argc) {
+            statusEvery = static_cast<std::size_t>(std::stoull(argv[++i]));
+        } else if (arg == "--debug-every" && i + 1 < argc) {
+            debugEvery = static_cast<std::size_t>(std::stoull(argv[++i]));
         } else if (arg == "--help" || arg == "-h") {
             printUsage(argv[0]);
             return 0;
@@ -67,8 +76,10 @@ int main(int argc, char** argv) {
 
         // Use legacy HLLE implementation from hlleFlux.hpp for this debug campaign.
         cfg.fluxScheme = "hlle";
-        // Write VTK snapshots every 10 iterations to localize discontinuity growth.
-        cfg.saveEvery = 10;
+        // Runtime output cadence controls.
+        cfg.saveEvery = saveEvery;
+        cfg.statusEvery = statusEvery;
+        cfg.debugEvery = debugEvery;
 
         FirstorderEuler solver(inputs, cfg);
         solver.loadInputs();

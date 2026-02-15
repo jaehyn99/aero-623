@@ -45,6 +45,9 @@ public:
         // Lightweight runtime diagnostics (printed every debugEvery iterations).
         bool enableDebugPrints = true;
         std::size_t debugEvery = 10;
+
+        // One-line progress table cadence ("it t dt ||R||2").
+        std::size_t statusEvery = 10;
     };
 
     struct MeshInputs {
