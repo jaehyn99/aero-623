@@ -65,8 +65,10 @@ int main(int argc, char** argv) {
             throw std::runtime_error("Unsupported mode: " + mode);
         }
 
-        // Experiment: use more diffusive HLLE numerical flux for robustness.
+        // Use legacy HLLE implementation from hlleFlux.hpp for this debug campaign.
         cfg.fluxScheme = "hlle";
+        // Write VTK snapshots every 10 iterations to localize discontinuity growth.
+        cfg.saveEvery = 10;
 
         FirstorderEuler solver(inputs, cfg);
         solver.loadInputs();

@@ -3,7 +3,7 @@
 
 // Project assumption: Eigen is available, so Roe/HLLE flux headers are used directly.
 #include "solver/boundaryFlux.hpp"
-#include "solver/hlleFluxFO.hpp"
+#include "solver/hlleFlux.hpp"
 #include "solver/inletFlux.hpp"
 #include "solver/numericalFlux.hpp"
 #include "solver/outletFlux.hpp"
@@ -842,6 +842,27 @@ void FirstorderEuler::printIterationDiagnostics(const std::vector<EdgeFluxContri
         if (m > fluxMax) { fluxMax = m; fluxMaxEdge = i; }
     }
 
+    Vec2 pMinCenter{0.0, 0.0};
+    if (pMinCell < elements_.size()) {
+        const auto& e = elements_[pMinCell];
+        const auto& a = nodes_[e[0]];
+        const auto& b = nodes_[e[1]];
+        const auto& c = nodes_[e[2]];
+        pMinCenter = {(a[0] + b[0] + c[0]) / 3.0, (a[1] + b[1] + c[1]) / 3.0};
+    }
+
+    Vec2 fluxMaxCenter{0.0, 0.0};
+    if (fluxMaxEdge < edges.size()) {
+        const auto& ef = edges[fluxMaxEdge];
+        for (const auto& f : interiorFaces_) {
+            if ((f.elemL == ef.ownerElem && f.elemR == ef.neighborElem)
+                || (f.elemL == ef.neighborElem && f.elemR == ef.ownerElem)) {
+                fluxMaxCenter = f.center;
+                break;
+            }
+        }
+    }
+
     double rMax = 0.0;
     std::size_t rMaxCell = 0, rMaxComp = 0;
     for (std::size_t i = 0; i < residual_.size(); ++i) {
@@ -857,7 +878,9 @@ void FirstorderEuler::printIterationDiagnostics(const std::vector<EdgeFluxContri
               << " ||R||2=" << normR
               << " rho[min,max]=(" << (*minmaxRho.first)[0] << "," << (*minmaxRho.second)[0] << ")"
               << " p[min,max]=(" << pMin << "@" << pMinCell << "," << pMax << "@" << pMaxCell << ")"
+              << " pMin(x,y)=(" << pMinCenter[0] << "," << pMinCenter[1] << ")"
               << " max|flux|=" << fluxMax << "@edge" << fluxMaxEdge
+              << " fluxMax(x,y)=(" << fluxMaxCenter[0] << "," << fluxMaxCenter[1] << ")"
               << " max|R|=" << rMax << "@cell" << rMaxCell << ",k" << rMaxComp
               << " max|F_mass,wall|=" << maxWallBoundaryMassFlux()
               << " edges=" << edges.size() << "\n";
