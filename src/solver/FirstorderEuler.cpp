@@ -2,8 +2,13 @@
 #include "mesh/TriangularMesh.h"
 
 // Project assumption: Eigen is available, so Roe/HLLE flux headers are used directly.
-#include "solver/hlle_flux.hpp"
-#include "solver/roe_flux.hpp"
+#include "solver/boundaryFlux.hpp"
+#include "solver/hlleFlux.hpp"
+#include "solver/inletFlux.hpp"
+#include "solver/numericalFlux.hpp"
+#include "solver/outletFlux.hpp"
+#include "solver/roeFlux.hpp"
+#include "solver/wallFlux.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -81,7 +86,7 @@ void enforcePhysicalState(FirstorderEuler::Conserved& U, double gamma) {
     U[3] = rhoE;
 }
 
-std::unique_ptr<Flux> makeFlux(const std::string& schemeName) {
+std::unique_ptr<numericalFlux> makeFlux(const std::string& schemeName) {
     const std::string name = toLower(schemeName);
     if (name == "roe") {
         return std::make_unique<RoeFlux>();
@@ -440,12 +445,11 @@ std::vector<FirstorderEuler::EdgeFluxContribution> FirstorderEuler::computeEdgeF
         edge.normal = f.normal;
         edge.edgeLength = f.length;
         edge.flux = F;
-        edge.spectralRadius = std::max(spectralRadius(UL, f.normal, config_.gamma),
-                                       spectralRadius(UR, f.normal, config_.gamma));
+        edge.spectralRadius = spectralRadius(UL, f.normal, config_.gamma);
         edges.push_back(edge);
     }
 
-    // Boundary condition imposition happens here via ghost-state construction.
+    // Boundary condition imposition happens here via boundary flux modules.
     for (const auto& f : boundaryFaces_) {
         const Conserved& UL = U_.at(f.elem);
         EulerBoundaryConditions::Type kind = bcModel.typeFromCurveTitle(f.boundaryTitle);
@@ -457,13 +461,7 @@ std::vector<FirstorderEuler::EdgeFluxContribution> FirstorderEuler::computeEdgeF
             kind = EulerBoundaryConditions::Type::InflowUnsteady;
         }
 
-        EulerBoundaryConditions::Context ctx;
-        ctx.time = time_;
-        ctx.faceCenter = f.center;
-        const Conserved UR = bcModel.boundaryState(kind, UL, f.normal, ctx);
-
-        const Eigen::Vector2d n(f.normal[0], f.normal[1]);
-        const Conserved F = fromEigen((*flux)(toEigen(UL), toEigen(UR), config_.gamma, n));
+        const Conserved F = computeBoundaryFluxFromModules(f, UL, kind);
 
         EdgeFluxContribution edge;
         edge.ownerElem = f.elem;
@@ -471,12 +469,39 @@ std::vector<FirstorderEuler::EdgeFluxContribution> FirstorderEuler::computeEdgeF
         edge.normal = f.normal;
         edge.edgeLength = f.length;
         edge.flux = F;
-        edge.spectralRadius = std::max(spectralRadius(UL, f.normal, config_.gamma),
-                                       spectralRadius(UR, f.normal, config_.gamma));
+        edge.spectralRadius = spectralRadius(UL, f.normal, config_.gamma);
         edges.push_back(edge);
     }
 
     return edges;
+}
+
+FirstorderEuler::Conserved FirstorderEuler::computeBoundaryFluxFromModules(
+    const BoundaryFace& f,
+    const Conserved& UL,
+    EulerBoundaryConditions::Type kind) const {
+    const Eigen::Vector4d up = toEigen(UL);
+    const Eigen::Vector2d n(f.normal[0], f.normal[1]);
+
+    std::unique_ptr<boundaryFlux> faceFlux;
+    switch (kind) {
+    case EulerBoundaryConditions::Type::InflowSteady:
+    case EulerBoundaryConditions::Type::InflowUnsteady: {
+        const bool transient = (kind == EulerBoundaryConditions::Type::InflowUnsteady);
+        faceFlux = std::make_unique<inletFlux>(config_.rho0, config_.a0, config_.alpha, time_, transient);
+        break;
+    }
+    case EulerBoundaryConditions::Type::OutflowSubsonic:
+        faceFlux = std::make_unique<outletFlux>(config_.pout);
+        break;
+    case EulerBoundaryConditions::Type::WallSlip:
+        faceFlux = std::make_unique<wallFlux>();
+        break;
+    case EulerBoundaryConditions::Type::Periodic:
+        throw std::runtime_error("Periodic boundary was routed to boundary-flux evaluation.");
+    }
+
+    return fromEigen((*faceFlux)(up, config_.gamma, n));
 }
 
 void FirstorderEuler::assembleResidualFromEdgeFluxes(const std::vector<EdgeFluxContribution>& edges) {
