@@ -135,6 +135,7 @@ private:
                                    const std::vector<double>* dtLocal,
                                    double dtUsed,
                                    double normR) const;
+    double maxWallBoundaryMassFlux() const;
 
     MeshInputs inputs_;
     SolverConfig config_;

@@ -851,12 +851,41 @@ void FirstorderEuler::printIterationDiagnostics(const std::vector<EdgeFluxContri
               << " p[min,max]=(" << pMin << "@" << pMinCell << "," << pMax << "@" << pMaxCell << ")"
               << " max|flux|=" << fluxMax << "@edge" << fluxMaxEdge
               << " max|R|=" << rMax << "@cell" << rMaxCell << ",k" << rMaxComp
+              << " max|F_mass,wall|=" << maxWallBoundaryMassFlux()
               << " edges=" << edges.size() << "\n";
 
     if (dtLocal != nullptr && !dtLocal->empty()) {
         const auto mmDt = std::minmax_element(dtLocal->begin(), dtLocal->end());
         std::cout << "[debug]   dtLocal[min,max]=(" << *mmDt.first << "," << *mmDt.second << ")\n";
     }
+}
+
+double FirstorderEuler::maxWallBoundaryMassFlux() const {
+    if (boundaryFaces_.empty()) {
+        return 0.0;
+    }
+
+    const EulerBoundaryConditions bcModel = makeBoundaryConditions(config_);
+    const auto flux = makeFlux(config_.fluxScheme);
+    double maxAbsMassFlux = 0.0;
+    for (const auto& f : boundaryFaces_) {
+        auto kind = bcModel.typeFromCurveTitle(f.boundaryTitle);
+        if (kind != EulerBoundaryConditions::Type::WallSlip) {
+            continue;
+        }
+
+        EulerBoundaryConditions::Context ctx;
+        ctx.time = time_;
+        ctx.faceCenter = f.center;
+        const Conserved UL = U_.at(f.elem);
+        const Conserved UR = bcModel.boundaryState(kind, UL, f.normal, ctx);
+
+        const Vec2 nUnit = normalized(f.normal);
+        const Eigen::Vector2d n(nUnit[0], nUnit[1]);
+        const Conserved F = fromEigen((*flux)(toEigen(UL), toEigen(UR), config_.gamma, n));
+        maxAbsMassFlux = std::max(maxAbsMassFlux, std::abs(F[0]));
+    }
+    return maxAbsMassFlux;
 }
 
 double FirstorderEuler::l2Norm(const std::vector<Conserved>& values) {
