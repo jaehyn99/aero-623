@@ -18,6 +18,7 @@
 #include <iostream>
 #include <limits>
 #include <memory>
+#include <numeric>
 #include <unordered_map>
 #include <string>
 #include <sstream>
@@ -139,6 +140,10 @@ void FirstorderEuler::loadInputs() {
 
     U_.assign(elements_.size(), Conserved{0.0, 0.0, 0.0, 0.0});
     residual_.assign(elements_.size(), Conserved{0.0, 0.0, 0.0, 0.0});
+
+    if (config_.enableDebugPrints) {
+        printBoundaryConditionSummary();
+    }
 }
 
 void FirstorderEuler::readMeshAndConnectivity() {
@@ -474,10 +479,13 @@ void FirstorderEuler::advance(bool stopByTime) {
         assembleResidualFromEdgeFluxes(edges);
 
         double dtUsed = 0.0;
+        std::vector<double> dtLocalBuffer;
+        const std::vector<double>* dtLocalPtr = nullptr;
         if (config_.localTimeStepping) {
-            auto dtLocal = computeLocalDtFromWaveSpeeds(edges);
-            dtUsed = dtLocal.empty() ? 0.0 : *std::min_element(dtLocal.begin(), dtLocal.end());
-            updateStateLocalDt(dtLocal);
+            dtLocalBuffer = computeLocalDtFromWaveSpeeds(edges);
+            dtLocalPtr = &dtLocalBuffer;
+            dtUsed = dtLocalBuffer.empty() ? 0.0 : *std::min_element(dtLocalBuffer.begin(), dtLocalBuffer.end());
+            updateStateLocalDt(dtLocalBuffer);
         } else {
             dtUsed = computeGlobalDtFromWaveSpeeds(edges);
             updateStateGlobalDt(dtUsed);
@@ -497,6 +505,10 @@ void FirstorderEuler::advance(bool stopByTime) {
         }
         if (iteration_ % 10 == 0 || (stopByTime && time_ >= config_.finalTime)) {
             std::cout << iteration_ << " " << time_ << " " << dtUsed << " " << normR << "\n";
+        }
+
+        if (config_.enableDebugPrints && (iteration_ % std::max<std::size_t>(1, config_.debugEvery) == 0)) {
+            printIterationDiagnostics(edges, dtLocalPtr, dtUsed, normR);
         }
 
         ++iteration_;
@@ -553,7 +565,14 @@ std::vector<FirstorderEuler::EdgeFluxContribution> FirstorderEuler::computeEdgeF
             kind = EulerBoundaryConditions::Type::InflowUnsteady;
         }
 
-        const Conserved F = computeBoundaryFluxFromModules(f, UL, kind);
+        EulerBoundaryConditions::Context ctx;
+        ctx.time = time_;
+        ctx.faceCenter = f.center;
+        const Conserved UR = bcModel.boundaryState(kind, UL, f.normal, ctx);
+
+        const Vec2 nUnit = normalized(f.normal);
+        const Eigen::Vector2d n(nUnit[0], nUnit[1]);
+        const Conserved F = fromEigen((*flux)(toEigen(UL), toEigen(UR), config_.gamma, n));
 
         EdgeFluxContribution edge;
         edge.ownerElem = f.elem;
@@ -561,7 +580,8 @@ std::vector<FirstorderEuler::EdgeFluxContribution> FirstorderEuler::computeEdgeF
         edge.normal = f.normal;
         edge.edgeLength = f.length;
         edge.flux = F;
-        edge.spectralRadius = spectralRadius(UL, normalized(f.normal), config_.gamma);
+        edge.spectralRadius = std::max(spectralRadius(UL, nUnit, config_.gamma),
+                                       spectralRadius(UR, nUnit, config_.gamma));
         edges.push_back(edge);
     }
 
@@ -697,6 +717,97 @@ void FirstorderEuler::updateStateLocalDt(const std::vector<double>& dtLocal) {
             U_[i][k] -= scale * residual_[i][k];
         }
         enforcePhysicalState(U_[i], config_.gamma);
+    }
+}
+
+
+double FirstorderEuler::cellPressure(const Conserved& U) const {
+    const double rho = std::max(1e-14, U[0]);
+    const double u = U[1] / rho;
+    const double v = U[2] / rho;
+    return (config_.gamma - 1.0) * (U[3] - 0.5 * rho * (u * u + v * v));
+}
+
+void FirstorderEuler::printBoundaryConditionSummary() const {
+    const EulerBoundaryConditions bcModel = makeBoundaryConditions(config_);
+    std::size_t nInflow = 0, nOutflow = 0, nWall = 0, nPeriodic = 0;
+    std::unordered_map<std::string, std::size_t> perTitle;
+
+    for (const auto& f : boundaryFaces_) {
+        perTitle[f.boundaryTitle] += 1;
+        switch (bcModel.typeFromCurveTitle(f.boundaryTitle)) {
+        case EulerBoundaryConditions::Type::InflowSteady:
+        case EulerBoundaryConditions::Type::InflowUnsteady:
+            ++nInflow;
+            break;
+        case EulerBoundaryConditions::Type::OutflowSubsonic:
+            ++nOutflow;
+            break;
+        case EulerBoundaryConditions::Type::WallSlip:
+            ++nWall;
+            break;
+        case EulerBoundaryConditions::Type::Periodic:
+            ++nPeriodic;
+            break;
+        }
+    }
+
+    std::cout << "[debug] BC summary: boundaryFaces=" << boundaryFaces_.size()
+              << " inflow=" << nInflow
+              << " outflow=" << nOutflow
+              << " wall=" << nWall
+              << " periodic=" << nPeriodic << "\n";
+    for (const auto& kv : perTitle) {
+        std::cout << "[debug]   title='" << kv.first << "' faces=" << kv.second << "\n";
+    }
+}
+
+void FirstorderEuler::printIterationDiagnostics(const std::vector<EdgeFluxContribution>& edges,
+                                                const std::vector<double>* dtLocal,
+                                                double dtUsed,
+                                                double normR) const {
+    const auto minmaxRho = std::minmax_element(U_.begin(), U_.end(),
+        [](const Conserved& a, const Conserved& b) { return a[0] < b[0]; });
+
+    double pMin = std::numeric_limits<double>::infinity();
+    double pMax = -std::numeric_limits<double>::infinity();
+    std::size_t pMinCell = 0, pMaxCell = 0;
+    for (std::size_t i = 0; i < U_.size(); ++i) {
+        const double p = cellPressure(U_[i]);
+        if (p < pMin) { pMin = p; pMinCell = i; }
+        if (p > pMax) { pMax = p; pMaxCell = i; }
+    }
+
+    double fluxMax = 0.0;
+    std::size_t fluxMaxEdge = 0;
+    for (std::size_t i = 0; i < edges.size(); ++i) {
+        const double m = std::max({std::abs(edges[i].flux[0]), std::abs(edges[i].flux[1]),
+                                   std::abs(edges[i].flux[2]), std::abs(edges[i].flux[3])});
+        if (m > fluxMax) { fluxMax = m; fluxMaxEdge = i; }
+    }
+
+    double rMax = 0.0;
+    std::size_t rMaxCell = 0, rMaxComp = 0;
+    for (std::size_t i = 0; i < residual_.size(); ++i) {
+        for (std::size_t k = 0; k < 4; ++k) {
+            const double a = std::abs(residual_[i][k]);
+            if (a > rMax) { rMax = a; rMaxCell = i; rMaxComp = k; }
+        }
+    }
+
+    std::cout << "[debug] it=" << iteration_
+              << " t=" << time_
+              << " dt=" << dtUsed
+              << " ||R||2=" << normR
+              << " rho[min,max]=(" << (*minmaxRho.first)[0] << "," << (*minmaxRho.second)[0] << ")"
+              << " p[min,max]=(" << pMin << "@" << pMinCell << "," << pMax << "@" << pMaxCell << ")"
+              << " max|flux|=" << fluxMax << "@edge" << fluxMaxEdge
+              << " max|R|=" << rMax << "@cell" << rMaxCell << ",k" << rMaxComp
+              << " edges=" << edges.size() << "\n";
+
+    if (dtLocal != nullptr && !dtLocal->empty()) {
+        const auto mmDt = std::minmax_element(dtLocal->begin(), dtLocal->end());
+        std::cout << "[debug]   dtLocal[min,max]=(" << *mmDt.first << "," << *mmDt.second << ")\n";
     }
 }
 

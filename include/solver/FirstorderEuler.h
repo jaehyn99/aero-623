@@ -41,6 +41,10 @@ public:
 
         // Optional debug guard: validate mesh/connectivity arrays after load.
         bool validateMeshOnLoad = false;
+
+        // Lightweight runtime diagnostics (printed every debugEvery iterations).
+        bool enableDebugPrints = true;
+        std::size_t debugEvery = 10;
     };
 
     struct MeshInputs {
@@ -125,6 +129,12 @@ private:
     void resetMarchState();
     void advance(bool stopByTime);
     static double l2Norm(const std::vector<Conserved>& values);
+    double cellPressure(const Conserved& U) const;
+    void printBoundaryConditionSummary() const;
+    void printIterationDiagnostics(const std::vector<EdgeFluxContribution>& edges,
+                                   const std::vector<double>* dtLocal,
+                                   double dtUsed,
+                                   double normR) const;
 
     MeshInputs inputs_;
     SolverConfig config_;
