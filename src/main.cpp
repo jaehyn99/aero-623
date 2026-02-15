@@ -51,7 +51,7 @@ int main(int argc, char** argv) {
         FirstorderEuler::SolverConfig cfg;
         if (mode == "steady-global") {
             cfg.localTimeStepping = false;
-            cfg.cfl = 0.2;
+            cfg.cfl = 0.1;
             cfg.finalTime = 1e12; // Steady pseudo-time: stop by residual/maxIterations.
         } else if (mode == "steady-local") {
             cfg.localTimeStepping = true;
@@ -59,11 +59,16 @@ int main(int argc, char** argv) {
             cfg.finalTime = 1e12; // Steady pseudo-time: stop by residual/maxIterations.
         } else if (mode == "unsteady-global") {
             cfg.localTimeStepping = false;
-            cfg.cfl = 0.2;
+            cfg.cfl = 0.1;
             cfg.finalTime = 2.0; // Physical final time for unsteady run.
         } else {
             throw std::runtime_error("Unsupported mode: " + mode);
         }
+
+        // Use legacy HLLE implementation from hlleFlux.hpp for this debug campaign.
+        cfg.fluxScheme = "hlle";
+        // Write VTK snapshots every 10 iterations to localize discontinuity growth.
+        cfg.saveEvery = 10;
 
         FirstorderEuler solver(inputs, cfg);
         solver.loadInputs();
