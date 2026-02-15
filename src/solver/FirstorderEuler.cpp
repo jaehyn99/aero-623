@@ -576,6 +576,35 @@ std::vector<FirstorderEuler::EdgeFluxContribution> FirstorderEuler::computeEdgeF
     return edges;
 }
 
+FirstorderEuler::Conserved FirstorderEuler::computeBoundaryFluxFromModules(
+    const BoundaryFace& f,
+    const Conserved& UL,
+    EulerBoundaryConditions::Type kind) const {
+    const Eigen::Vector4d up = toEigen(UL);
+    const Vec2 nUnit = normalized(f.normal);
+    const Eigen::Vector2d n(nUnit[0], nUnit[1]);
+
+    std::unique_ptr<boundaryFlux> faceFlux;
+    switch (kind) {
+    case EulerBoundaryConditions::Type::InflowSteady:
+    case EulerBoundaryConditions::Type::InflowUnsteady: {
+        const bool transient = (kind == EulerBoundaryConditions::Type::InflowUnsteady);
+        faceFlux = std::make_unique<inletFlux>(config_.rho0, config_.a0, config_.alpha, time_, transient);
+        break;
+    }
+    case EulerBoundaryConditions::Type::OutflowSubsonic:
+        faceFlux = std::make_unique<outletFlux>(config_.pout);
+        break;
+    case EulerBoundaryConditions::Type::WallSlip:
+        faceFlux = std::make_unique<wallFlux>();
+        break;
+    case EulerBoundaryConditions::Type::Periodic:
+        throw std::runtime_error("Periodic boundary was routed to boundary-flux evaluation.");
+    }
+
+    return fromEigen((*faceFlux)(up, config_.gamma, n));
+}
+
 void FirstorderEuler::assembleResidualFromEdgeFluxes(const std::vector<EdgeFluxContribution>& edges) {
     for (auto& R : residual_) {
         for (double& x : R) {
