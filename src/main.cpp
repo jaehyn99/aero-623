@@ -55,7 +55,7 @@ int main(int argc, char** argv) {
             cfg.finalTime = 1e12; // Steady pseudo-time: stop by residual/maxIterations.
         } else if (mode == "steady-local") {
             cfg.localTimeStepping = true;
-            cfg.cfl = 0.5;
+            cfg.cfl = 0.02;
             cfg.finalTime = 1e12; // Steady pseudo-time: stop by residual/maxIterations.
         } else if (mode == "unsteady-global") {
             cfg.localTimeStepping = false;
