@@ -3,7 +3,7 @@
 
 // Project assumption: Eigen is available, so Roe/HLLE flux headers are used directly.
 #include "solver/boundaryFlux.hpp"
-#include "solver/hlleFlux.hpp"
+#include "solver/hlleFluxFO.hpp"
 #include "solver/inletFlux.hpp"
 #include "solver/numericalFlux.hpp"
 #include "solver/outletFlux.hpp"
@@ -104,7 +104,7 @@ std::unique_ptr<numericalFlux> makeFlux(const std::string& schemeName) {
         return std::make_unique<RoeFlux>();
     }
     if (name == "hlle") {
-        return std::make_unique<HLLEFlux>();
+        return std::make_unique<HLLEFluxFO>();
     }
     throw std::runtime_error("Unknown flux scheme: " + schemeName + " (expected 'roe' or 'hlle').");
 }
@@ -692,32 +692,40 @@ double FirstorderEuler::computeGlobalDtFromWaveSpeeds(const std::vector<EdgeFlux
     }
 
     if (edges.empty()) {
-        const double minArea = *std::min_element(area_.begin(), area_.end());
-        return std::max(1e-12, config_.cfl * minArea);
+        return 1e-12;
     }
 
-    double sumS = 0.0;
-    std::size_t validCount = 0;
+    // Consistent with PDF Eq. (3.4.3)-(3.4.5):
+    // d_i = 2*A_i/P_i,
+    // |s|_i = sum_e |s|_{i,e} * Delta l_{i,e} / P_i,
+    // global dt = min_i (CFL * d_i / |s|_i).
+    std::vector<double> speedLenSum(area_.size(), 0.0);
     for (const auto& edge : edges) {
-        const double s = std::abs(edge.spectralRadius) * edge.edgeLength;
-        if (std::isfinite(s) && s > 0.0) {
-            sumS += s;
-            ++validCount;
+        const double contrib = std::abs(edge.spectralRadius) * edge.edgeLength;
+        if (!std::isfinite(contrib) || contrib <= 0.0) {
+            continue;
+        }
+        speedLenSum[edge.ownerElem] += contrib;
+        if (edge.neighborElem != edge.ownerElem) {
+            speedLenSum[edge.neighborElem] += contrib;
         }
     }
 
-    const double avgS = (validCount > 0) ? (sumS / static_cast<double>(validCount)) : 0.0;
-    const double minDiameter = [&]() {
-        double d = std::numeric_limits<double>::max();
-        for (std::size_t i = 0; i < area_.size(); ++i) {
-            d = std::min(d, 2.0 * area_[i] / std::max(1e-12, perimeter_[i]));
+    double dtMin = std::numeric_limits<double>::infinity();
+    for (std::size_t i = 0; i < area_.size(); ++i) {
+        const double Pi = std::max(1e-12, perimeter_[i]);
+        const double di = 2.0 * area_[i] / Pi;
+        const double sbar = speedLenSum[i] / Pi;
+        const double dti = config_.cfl * di / std::max(1e-12, sbar);
+        if (std::isfinite(dti) && dti > 0.0) {
+            dtMin = std::min(dtMin, dti);
         }
-        return d;
-    }();
+    }
 
-    const double dtRaw = config_.cfl * minDiameter / std::max(1e-12, avgS);
-    const double dtMax = std::max(1e-8, config_.cfl * minDiameter);
-    return std::max(1e-12, std::min(dtRaw, dtMax));
+    if (!std::isfinite(dtMin)) {
+        return 1e-12;
+    }
+    return std::max(1e-12, dtMin);
 }
 
 std::vector<double> FirstorderEuler::computeLocalDtFromWaveSpeeds(const std::vector<EdgeFluxContribution>& edges) const {

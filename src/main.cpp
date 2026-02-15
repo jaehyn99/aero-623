@@ -65,6 +65,9 @@ int main(int argc, char** argv) {
             throw std::runtime_error("Unsupported mode: " + mode);
         }
 
+        // Experiment: use more diffusive HLLE numerical flux for robustness.
+        cfg.fluxScheme = "hlle";
+
         FirstorderEuler solver(inputs, cfg);
         solver.loadInputs();
         solver.initUniformState();
