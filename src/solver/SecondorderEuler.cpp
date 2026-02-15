@@ -97,7 +97,7 @@ void SecondOrderEuler::computeGradient(
         // Get cell center state values for left cell
         const State& UL = U.col(elem);
 
-        // Use boundary state based on bgroup
+        // Use boundary state based on bgroup (CHANGE BGROUP NUMBERS TO MATCH YOUR MESH)
         State Ub;
         if (bgroup == 1)
             Ub = inletState_(UL, gamma_, normal);
@@ -182,6 +182,7 @@ StateMatrix SecondOrderEuler::computeResidualFromGradient(
         R.col(elemR) -= flux;   // opposite sign
 
         // compute the wave speed at the edge and update the maximum wave speed for the left and right cells if necessary
+        
     }
 
     // ===============================
@@ -199,8 +200,29 @@ StateMatrix SecondOrderEuler::computeResidualFromGradient(
         Eigen::Vector2d normal = Bn.row(f_b);
         double edge_length = mesh.length(faceID);
 
-        // REST NEEDS TO BE DONE
-        
+        // Get cell center state values for left cell
+        const State& UL = U.col(elem);
+
+        // Based on boundary conditions, choose flux (CHANGE BGROUP NUMBERS TO MATCH YOUR MESH)
+        if (bgroup == 1) { // inlet
+            // compute the flux at the boundary using the inlet flux function and the interior state at the cell center and the boundary state
+            Eigen::Vector4d flux = inletFlux_(UL, gamma_, normal);
+            flux *= edge_length;
+            R.col(elem) += flux; // add contribution to residual of left cell
+        }
+        else if (bgroup == 2) { // outlet
+            Eigen::Vector4d flux = outletFlux_(UL, gamma_, normal);
+            flux *= edge_length;
+            R.col(elem) += flux; // add contribution to residual of left cell
+        }
+        else if (bgroup == 3) { // wall
+            Eigen::Vector4d flux = wallFlux_(UL, gamma_, normal);
+            flux *= edge_length;
+            R.col(elem) += flux; // add contribution to residual of left cell
+        }
+        else
+            throw std::runtime_error("Unknown boundary group in computeResidualFromGradient");
+
     }
 
     return R;

@@ -45,16 +45,16 @@ private:
     
 
 public:
-    SecondOrderEuler(const numericalFlux& numFlux,
-                      const boundaryFlux& inletFlux,
-                      const boundaryFlux& outletFlux,
-                      const boundaryFlux& wallFlux,
-                      const boundaryState& inletState,
-                      const boundaryState& outletState,
-                      const boundaryState& wallState,
+    SecondOrderEuler(const numericalFlux& numFl,
+                      const boundaryFlux& inletFl,
+                      const boundaryFlux& outletFl,
+                      const boundaryFlux& wallFl,
+                      const boundaryState& inletSt,
+                      const boundaryState& outletSt,
+                      const boundaryState& wallSt,
                       double gamma)
-        : numFlux_(numFlux), inletFlux_(inletFlux), outletFlux_(outletFlux), wallFlux_(wallFlux),
-          inletState_(inletState), outletState_(outletState), wallState_(wallState),
+        : numFlux_(numFl), inletFlux_(inletFl), outletFlux_(outletFl), wallFlux_(wallFl),
+          inletState_(inletSt), outletState_(outletSt), wallState_(wallSt),
           gamma_(gamma) {}
 
     StateMatrix computeResidual(TriangularMesh& mesh,
