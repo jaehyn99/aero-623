@@ -98,6 +98,9 @@ public:
     void runSteadyLocal();
     void runUnsteadyGlobal();
 
+    // Export solver state as legacy VTK (cell fields include pressure, Mach and Cp).
+    void writeSolutionVtk(const std::string& filePath) const;
+
     const std::vector<Conserved>& solution() const { return U_; }
     const std::vector<Conserved>& residual() const { return residual_; }
 

@@ -1,6 +1,8 @@
 #pragma once
 #include "boundaryFlux.hpp"
 #include <Eigen/Dense>
+#include <algorithm>
+#include <cmath>
 
 class outletFlux : public boundaryFlux {
 private:
@@ -13,40 +15,46 @@ public:
     Eigen::Vector4d operator()(
         const Eigen::Vector4d& UP,
         double gamma,
-        const Eigen::Vector2d& n
+        const Eigen::Vector2d& nRaw
     ) const override {
-	double gm1 = gamma - 1;
-        double rhoP = UP(0); 
-	double uP = UP(1)/rhoP;
-	double vP = UP(2)/rhoP;
-	double rhoEP = UP(3);
-	double pP = gm1*(rhoEP - 0.5*rhoP*(uP*uP + vP*vP));
-	double SP = p0_/std::pow(rhoP, gamma);
-	double rhoB = std::pow(p0_/SP, 1/gamma);
-	double cB = std::sqrt(gamma*p0_/rhoB);
-	double uNP = uP*n(0) + vP*n(1);
-	double cP = std::sqrt(gamma*pP/rhoP);
-	double JP = uNP + 2*cP/gm1;
-	double uNB = JP - 2*cB/gm1;
-	double uB = uP - n(0)*(uP*n(0) + vP*n(1) - uNB);
-	double vB = vP - n(1)*(uP*n(0) + vP*n(1) - uNB);
-	double rhoEB = p0_/gm1 + 0.5*rhoB*(uB*uB + vB*vB);
-	
-	Eigen::Matrix<double, 4, 1> F;
+        const double gm1 = gamma - 1.0;
+        const double nmag = std::max(1e-14, nRaw.norm());
+        const Eigen::Vector2d n = nRaw / nmag;
 
-	if (std::sqrt(uB*uB + vB*vB)/cB < 1) {
-		F(0) = rhoB*(uB*n(0) + vB*n(1));
-		F(1) = (rhoB*uB*uB + p0_)*n(0) + rhoB*uB*vB*n(1);
-		F(2) = rhoB*uB*vB*n(0) + (rhoB*vB*vB + p0_)*n(1);
-		F(3) = uB*(rhoEB + p0_)*n(0) + vB*(rhoEB + p0_)*n(1);
-	}
-	else {
-		F(0) = rhoP*(uP*n(0) + vP*n(1));
-		F(1) = (rhoP*uP*uP + pP)*n(0) + rhoP*uP*vP*n(1);
-		F(2) = rhoP*uP*vP*n(0) + (rhoP*vP*vP + pP)*n(1);
-		F(3) = uP*(rhoEP + pP)*n(0) + vP*(rhoEP + pP)*n(1);
-	}
-	
+        const double rhoP = std::max(1e-14, UP(0));
+        const double uP = UP(1) / rhoP;
+        const double vP = UP(2) / rhoP;
+        const double rhoEP = UP(3);
+        const double pP = std::max(1e-14, gm1 * (rhoEP - 0.5 * rhoP * (uP * uP + vP * vP)));
+
+        const double pBTarget = std::max(1e-14, p0_);
+        const double SP = pBTarget / std::pow(rhoP, gamma);
+        const double rhoB = std::max(1e-14, std::pow(pBTarget / std::max(1e-14, SP), 1.0 / gamma));
+        const double cB = std::sqrt(gamma * pBTarget / rhoB);
+
+        const double uNP = uP * n(0) + vP * n(1);
+        const double cP = std::sqrt(gamma * pP / rhoP);
+        const double JP = uNP + 2.0 * cP / gm1;
+        const double uNB = JP - 2.0 * cB / gm1;
+
+        const double uB = uP - n(0) * (uNP - uNB);
+        const double vB = vP - n(1) * (uNP - uNB);
+        const double rhoEB = pBTarget / gm1 + 0.5 * rhoB * (uB * uB + vB * vB);
+
+        Eigen::Vector4d F;
+        const double MB = std::sqrt(uB * uB + vB * vB) / std::max(1e-14, cB);
+        if (MB < 1.0) {
+            F(0) = rhoB * (uB * n(0) + vB * n(1));
+            F(1) = (rhoB * uB * uB + pBTarget) * n(0) + rhoB * uB * vB * n(1);
+            F(2) = rhoB * uB * vB * n(0) + (rhoB * vB * vB + pBTarget) * n(1);
+            F(3) = uB * (rhoEB + pBTarget) * n(0) + vB * (rhoEB + pBTarget) * n(1);
+        } else {
+            F(0) = rhoP * (uP * n(0) + vP * n(1));
+            F(1) = (rhoP * uP * uP + pP) * n(0) + rhoP * uP * vP * n(1);
+            F(2) = rhoP * uP * vP * n(0) + (rhoP * vP * vP + pP) * n(1);
+            F(3) = uP * (rhoEP + pP) * n(0) + vP * (rhoEP + pP) * n(1);
+        }
+
         return F;
     }
 };

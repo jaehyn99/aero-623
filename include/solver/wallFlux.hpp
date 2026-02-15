@@ -1,33 +1,34 @@
 #pragma once
 #include "boundaryFlux.hpp"
 #include <Eigen/Dense>
+#include <algorithm>
+#include <cmath>
 
 class wallFlux : public boundaryFlux {
 public:
     Eigen::Vector4d operator()(
         const Eigen::Vector4d& UP,
         double gamma,
-        const Eigen::Vector2d& n
+        const Eigen::Vector2d& nRaw
     ) const override {
-	double gm1 = gamma - 1;
-	double rhoP = UP(0);
-	double uP = UP(1)/rhoP;
-	double vP = UP(2)/rhoP;
-	double rhoEP = UP(3);
-	double uB = uP - n(0)*(uP*n(0) + vP*n(1));
-	double vB = vP - n(1)*(uP*n(0) + vP*n(1));
-	double pB = gm1*(rhoEP - 0.5*rhoP*(uB*uB + vB*vB));
-	double cB = std::sqrt(gamma*pB/rhoP);
-	double pP = gm1*(rhoEP - 0.5*rhoP*(uP*uP + vP*vP));
-	double cP = std::sqrt(gamma*pP/rhoP);
-	double uNP = uP*n(0) + vP*n(1);
-	double JP = uNP + 2*cP/gm1;
-	double uNB = JP - 2*cB/gm1;
-	Eigen::Matrix<double, 4, 1> F;
-	F(0) = 0.0;
-	F(1) = pB*n(0);
-	F(2) = pB*n(1);
-	F(3) = 0.0;
+        const double gm1 = gamma - 1.0;
+        const double nmag = std::max(1e-14, nRaw.norm());
+        const Eigen::Vector2d n = nRaw / nmag;
+
+        const double rhoP = std::max(1e-14, UP(0));
+        const double uP = UP(1) / rhoP;
+        const double vP = UP(2) / rhoP;
+        const double rhoEP = UP(3);
+
+        const double uB = uP - n(0) * (uP * n(0) + vP * n(1));
+        const double vB = vP - n(1) * (uP * n(0) + vP * n(1));
+        const double pB = std::max(1e-14, gm1 * (rhoEP - 0.5 * rhoP * (uB * uB + vB * vB)));
+
+        Eigen::Vector4d F;
+        F(0) = 0.0;
+        F(1) = pB * n(0);
+        F(2) = pB * n(1);
+        F(3) = 0.0;
         return F;
     }
 };
