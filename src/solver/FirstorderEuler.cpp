@@ -3,7 +3,7 @@
 
 // Project assumption: Eigen is available, so Roe/HLLE flux headers are used directly.
 #include "solver/boundaryFlux.hpp"
-#include "solver/hlleFlux.hpp"
+#include "solver/hlleFluxFO.hpp"
 #include "solver/inletFlux.hpp"
 #include "solver/numericalFlux.hpp"
 #include "solver/outletFlux.hpp"
