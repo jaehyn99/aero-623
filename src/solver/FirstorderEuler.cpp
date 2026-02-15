@@ -550,7 +550,8 @@ void FirstorderEuler::advance(bool stopByTime) {
                                      "Wrote debug VTK: " + dumpName + "\n"
                                      "Try smaller CFL or verify BC/mesh consistency.");
         }
-        if (iteration_ % 10 == 0 || (stopByTime && time_ >= config_.finalTime)) {
+        const std::size_t statusEvery = std::max<std::size_t>(1, config_.statusEvery);
+        if (iteration_ % statusEvery == 0 || (stopByTime && time_ >= config_.finalTime)) {
             std::cout << iteration_ << " " << time_ << " " << dtUsed << " " << normR << "\n";
         }
 
