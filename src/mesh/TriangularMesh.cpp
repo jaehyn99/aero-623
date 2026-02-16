@@ -26,16 +26,11 @@ TriangularMesh::Element::Element(TriangularMesh& mesh, std::size_t pointID1, std
     // Look if its faces have already been added to mesh._faces
     for (std::size_t j = 0; j < 3; j++){
         Face iface(mesh, _pointID[(j+1)%3], _pointID[(j+2)%3]);
-        std::cout << "Face " << j << " connecting " << _pointID[(j+1)%3] << " and " << _pointID[(j+2)%3] << std::endl;
 
         // Assign face ID to elem and elem ID to face
         std::size_t faceID = std::find(mesh._faces.cbegin(), mesh._faces.cend(), iface) - mesh._faces.cbegin();
-        if (faceID == mesh.numFaces()){
-            std::cout << "\tThis face has not been added. Adding now." << std::endl;
-            mesh._faces.push_back(iface);
-        }
+        if (faceID == mesh.numFaces()) mesh._faces.push_back(iface);
         _faceID[j] = faceID;
-        std::cout << "\tThis face ID is " << faceID << std::endl;
 
         Face& face = mesh.face(faceID);
         if (face._elemID[0] == -1) face._elemID[0] = mesh.numElems(); // No ElemID has been updated
@@ -274,15 +269,12 @@ void TriangularMesh::writeGri(const std::string& fileName) const noexcept{
             // Elem numbers
             std::size_t elemLID = face._elemID[0];
             std::size_t elemRID = face._elemID[1];
-            std::cout << "Face " << i << " is an interior face bordering elements " << elemLID << " and " << elemRID << std::endl;
 
             // Local face numbers
             const Element& elemL = _elems[elemLID];
             std::size_t faceL = std::find(elemL._faceID.cbegin(), elemL._faceID.cend(), i) - elemL._faceID.cbegin();
-            std::cout << "ElemL has faces " << elemL._faceID[0] << ", " << elemL._faceID[1] << " and " << elemL._faceID[2] << ". Face " << i << " is its face " << faceL << std::endl;
             const Element& elemR = _elems[elemRID];
             std::size_t faceR = std::find(elemR._faceID.cbegin(), elemR._faceID.cend(), i) - elemR._faceID.cbegin();
-            std::cout << "ElemR has faces " << elemR._faceID[0] << ", " << elemR._faceID[1] << " and " << elemR._faceID[2] << ". Face " << i << " is its face " << faceR << std::endl;
 
             of << elemLID+1 << " " << faceL+1 << " " << elemRID+1 << " " << faceR+1 << "\n";
         } else{

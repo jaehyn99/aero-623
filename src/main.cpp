@@ -7,8 +7,8 @@
 #include "TriangularMesh.h"
 
 int main() {
-    TriangularMesh mesh("projects/Project-1/mesh_coarse.gri");
-    mesh.writeGri("projects/Project-1/mesh_coarse.gri");
+    TriangularMesh mesh("projects/Project-1/test.gri");
+    mesh.writeGri("projects/Project-1/test.gri");
 
     return 0;
 }
