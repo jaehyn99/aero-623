@@ -870,12 +870,33 @@ void FirstorderEuler::updateStateGlobalDt(double dt) {
 
 
 void FirstorderEuler::updateStateLocalDt(const std::vector<double>& dtLocal) {
+    const int maxCuts = 10;
+
     for (std::size_t i = 0; i < U_.size(); ++i) {
-        const double scale = dtLocal[i] / area_[i];
-        for (std::size_t k = 0; k < U_[i].size(); ++k) {
-            U_[i][k] -= scale * residual_[i][k];
+        double dtUse = dtLocal[i];
+        const Conserved Uold = U_[i];
+
+        for (int cut = 0; cut <= maxCuts; ++cut) {
+            Conserved Utry = Uold;
+            const double scale = dtUse / area_[i];
+            for (std::size_t k = 0; k < Utry.size(); ++k) {
+                Utry[k] -= scale * residual_[i][k];
+            }
+
+            const double rho = Utry[0];
+            const double p = cellPressure(Utry);
+            if (std::isfinite(rho) && std::isfinite(p) && rho > 1e-10 && p > 1e-10) {
+                U_[i] = Utry;
+                break;
+            }
+
+            if (cut == maxCuts) {
+                U_[i] = Utry;
+                enforcePhysicalState(U_[i], config_.gamma);
+            } else {
+                dtUse *= 0.5;
+            }
         }
-        enforcePhysicalState(U_[i], config_.gamma);
     }
 }
 
