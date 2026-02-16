@@ -1,5 +1,6 @@
 #include "FirstorderEuler.h"
 #include "mesh/TriangularMesh.h"
+#include "solver/BoundaryConditions.h"
 #include "solver/boundaryFlux.hpp"
 #include "solver/hlleFluxFO.hpp"
 #include "solver/inletFlux.hpp"
@@ -84,6 +85,39 @@ BoundaryKind boundaryKindFromTitle(const std::string& title,
 
     return BoundaryKind::InflowSteady;
 }
+
+EulerBoundaryConditions makeBoundaryConditions(const FirstorderEuler::SolverConfig& config) {
+    EulerBoundaryConditions::Config bc;
+    bc.gamma = config.gamma;
+    bc.gasConstant = config.gasConstant;
+    bc.alpha = config.alpha;
+    bc.pout = config.pout;
+    bc.rho0 = config.rho0;
+    bc.inflowCurve = config.inflowCurve;
+    bc.outflowCurve = config.outflowCurve;
+
+    bc.Tt = (config.a0 * config.a0) / (config.gamma * config.gasConstant);
+    bc.pt = config.rho0 * config.gasConstant * bc.Tt;
+    bc.Vrot = config.a0;
+    return EulerBoundaryConditions(bc);
+}
+
+EulerBoundaryConditions::Type toBoundaryType(BoundaryKind kind) {
+    switch (kind) {
+    case BoundaryKind::InflowSteady:
+        return EulerBoundaryConditions::Type::InflowSteady;
+    case BoundaryKind::InflowUnsteady:
+        return EulerBoundaryConditions::Type::InflowUnsteady;
+    case BoundaryKind::OutflowSubsonic:
+        return EulerBoundaryConditions::Type::OutflowSubsonic;
+    case BoundaryKind::WallSlip:
+        return EulerBoundaryConditions::Type::WallSlip;
+    case BoundaryKind::Periodic:
+        return EulerBoundaryConditions::Type::Periodic;
+    }
+    return EulerBoundaryConditions::Type::InflowSteady;
+}
+
 
 FirstorderEuler::Vec2 normalized(const FirstorderEuler::Vec2& n) {
     const double mag = std::sqrt(n[0] * n[0] + n[1] * n[1]);
@@ -659,7 +693,14 @@ std::vector<FirstorderEuler::EdgeFluxContribution> FirstorderEuler::computeEdgeF
         fFixed.normal = nFace;
 
         const Vec2 nUnit = normalized(nFace);
-        const Conserved F = computeBoundaryFluxFromModules(fFixed, UL, kind);
+        const Eigen::Vector2d n(nUnit[0], nUnit[1]);
+
+        EulerBoundaryConditions::Context ctx;
+        ctx.time = time_;
+        ctx.faceCenter = fFixed.center;
+        const Conserved UR = bcModel.boundaryState(toBoundaryType(kind), UL, nUnit, ctx);
+
+        const Conserved F = fromEigen((*flux)(toEigen(UL), toEigen(UR), config_.gamma, n));
 
         EdgeFluxContribution edge;
         edge.ownerElem = f.elem;
@@ -975,6 +1016,9 @@ double FirstorderEuler::maxWallBoundaryMassFlux() const {
         return 0.0;
     }
 
+    const EulerBoundaryConditions bcModel = makeBoundaryConditions(config_);
+    const auto flux = makeFlux(config_.fluxScheme);
+
     double maxAbsMassFlux = 0.0;
     for (const auto& f : boundaryFaces_) {
         const BoundaryKind kind = boundaryKindFromTitle(f.boundaryTitle, config_);
@@ -982,8 +1026,15 @@ double FirstorderEuler::maxWallBoundaryMassFlux() const {
             continue;
         }
 
+        EulerBoundaryConditions::Context ctx;
+        ctx.time = time_;
+        ctx.faceCenter = f.center;
+
         const Conserved UL = U_.at(f.elem);
-        const Conserved F = computeBoundaryFluxFromModules(f, UL, kind);
+        const Vec2 nUnit = normalized(f.normal);
+        const Eigen::Vector2d n(nUnit[0], nUnit[1]);
+        const Conserved UR = bcModel.boundaryState(toBoundaryType(kind), UL, nUnit, ctx);
+        const Conserved F = fromEigen((*flux)(toEigen(UL), toEigen(UR), config_.gamma, n));
         maxAbsMassFlux = std::max(maxAbsMassFlux, std::abs(F[0]));
     }
     return maxAbsMassFlux;
