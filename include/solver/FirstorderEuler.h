@@ -8,7 +8,6 @@
 
 
 #include "mesh/TriangularMesh.h"
-#include "solver/BoundaryConditions.h"
 
 class FirstorderEuler {
 public:
@@ -88,6 +87,14 @@ public:
         double spectralRadius = 0.0;
     };
 
+    enum class BoundaryKind {
+        InflowSteady,
+        InflowUnsteady,
+        OutflowSubsonic,
+        WallSlip,
+        Periodic
+    };
+
     FirstorderEuler(MeshInputs inputs, SolverConfig config);
 
     // Part 1 API: mesh processing + conservative initialization.
@@ -126,7 +133,7 @@ private:
     std::vector<EdgeFluxContribution> computeEdgeFluxesAndWaveSpeeds() const;
     Conserved computeBoundaryFluxFromModules(const BoundaryFace& f,
                                               const Conserved& UL,
-                                              EulerBoundaryConditions::Type kind) const;
+                                              BoundaryKind kind) const;
     void assembleResidualFromEdgeFluxes(const std::vector<EdgeFluxContribution>& edges);
     double computeGlobalDtFromWaveSpeeds(const std::vector<EdgeFluxContribution>& edges) const;
     std::vector<double> computeLocalDtFromWaveSpeeds(const std::vector<EdgeFluxContribution>& edges) const;
@@ -142,6 +149,7 @@ private:
                                    double dtUsed,
                                    double normR) const;
     double maxWallBoundaryMassFlux() const;
+    std::size_t sanitizeSolutionState();
 
     MeshInputs inputs_;
     SolverConfig config_;

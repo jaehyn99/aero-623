@@ -1,5 +1,6 @@
 #include "FirstorderEuler.h"
 #include "mesh/TriangularMesh.h"
+#include "solver/BoundaryConditions.h"
 #include "solver/boundaryFlux.hpp"
 #include "solver/hlleFluxFO.hpp"
 #include "solver/inletFlux.hpp"
@@ -25,6 +26,7 @@
 namespace {
 
 using Vec2 = FirstorderEuler::Vec2;
+using BoundaryKind = FirstorderEuler::BoundaryKind;
 
 inline double dot2(const Vec2& a, const Vec2& b) { return a[0]*b[0] + a[1]*b[1]; }
 inline Vec2 neg2(const Vec2& a) { return Vec2{-a[0], -a[1]}; }
@@ -47,6 +49,43 @@ std::string toLower(std::string s) {
     return s;
 }
 
+int parseCurveId(const std::string& title) {
+    std::string digits;
+    for (char c : title) {
+        if (std::isdigit(static_cast<unsigned char>(c))) {
+            digits.push_back(c);
+        }
+    }
+    if (digits.empty()) {
+        return -1;
+    }
+    return std::stoi(digits);
+}
+
+BoundaryKind boundaryKindFromTitle(const std::string& title,
+                                   const FirstorderEuler::SolverConfig& config) {
+    const int curveID = parseCurveId(title);
+
+    if (curveID == 2 || curveID == 4 || curveID == 6 || curveID == 8) {
+        return BoundaryKind::Periodic;
+    }
+    if (curveID == 1 || curveID == 5) {
+        return BoundaryKind::WallSlip;
+    }
+    if (curveID == config.outflowCurve) {
+        return BoundaryKind::OutflowSubsonic;
+    }
+    if (curveID == config.inflowCurve) {
+        return BoundaryKind::InflowSteady;
+    }
+
+    if (curveID == 3 || curveID == 7) {
+        return (curveID == 3) ? BoundaryKind::InflowSteady : BoundaryKind::OutflowSubsonic;
+    }
+
+    return BoundaryKind::InflowSteady;
+}
+
 EulerBoundaryConditions makeBoundaryConditions(const FirstorderEuler::SolverConfig& config) {
     EulerBoundaryConditions::Config bc;
     bc.gamma = config.gamma;
@@ -57,12 +96,28 @@ EulerBoundaryConditions makeBoundaryConditions(const FirstorderEuler::SolverConf
     bc.inflowCurve = config.inflowCurve;
     bc.outflowCurve = config.outflowCurve;
 
-    // Total-condition defaults from existing solver config.
     bc.Tt = (config.a0 * config.a0) / (config.gamma * config.gasConstant);
     bc.pt = config.rho0 * config.gasConstant * bc.Tt;
     bc.Vrot = config.a0;
     return EulerBoundaryConditions(bc);
 }
+
+EulerBoundaryConditions::Type toBoundaryType(BoundaryKind kind) {
+    switch (kind) {
+    case BoundaryKind::InflowSteady:
+        return EulerBoundaryConditions::Type::InflowSteady;
+    case BoundaryKind::InflowUnsteady:
+        return EulerBoundaryConditions::Type::InflowUnsteady;
+    case BoundaryKind::OutflowSubsonic:
+        return EulerBoundaryConditions::Type::OutflowSubsonic;
+    case BoundaryKind::WallSlip:
+        return EulerBoundaryConditions::Type::WallSlip;
+    case BoundaryKind::Periodic:
+        return EulerBoundaryConditions::Type::Periodic;
+    }
+    return EulerBoundaryConditions::Type::InflowSteady;
+}
+
 
 FirstorderEuler::Vec2 normalized(const FirstorderEuler::Vec2& n) {
     const double mag = std::sqrt(n[0] * n[0] + n[1] * n[1]);
@@ -82,6 +137,55 @@ Eigen::Vector4d toEigen(const FirstorderEuler::Conserved& u) {
 
 FirstorderEuler::Conserved fromEigen(const Eigen::Vector4d& u) {
     return {u(0), u(1), u(2), u(3)};
+}
+
+bool hasReasonablePressureAndInternalEnergy(const FirstorderEuler::Conserved& Unew,
+                                            const FirstorderEuler::Conserved& Uold,
+                                            double gamma) {
+    constexpr double rhoFloor = 1e-10;
+    constexpr double pFloor = 1e-10;
+    constexpr double minPressureRatio = 0.85;
+
+    const double rhoNew = Unew[0];
+    if (!std::isfinite(rhoNew) || rhoNew <= rhoFloor) {
+        return false;
+    }
+
+    const auto pressureOf = [&](const FirstorderEuler::Conserved& U) {
+        const double rho = std::max(1e-14, U[0]);
+        const double u = U[1] / rho;
+        const double v = U[2] / rho;
+        return (gamma - 1.0) * (U[3] - 0.5 * rho * (u * u + v * v));
+    };
+
+    const double pOld = pressureOf(Uold);
+    const double pNew = pressureOf(Unew);
+    if (!std::isfinite(pOld) || !std::isfinite(pNew) || pNew <= pFloor) {
+        return false;
+    }
+
+    const double minAllowed = minPressureRatio * std::max(pFloor, pOld);
+    if (pNew < minAllowed) {
+        return false;
+    }
+
+    const double rho = rhoNew;
+    const double u = Unew[1] / rho;
+    const double v = Unew[2] / rho;
+    const double eInt = Unew[3] - 0.5 * rho * (u * u + v * v);
+    return std::isfinite(eInt) && eInt > pFloor / (gamma - 1.0);
+}
+
+FirstorderEuler::Conserved conservativeBlend(const FirstorderEuler::Conserved& A,
+                                             const FirstorderEuler::Conserved& B,
+                                             double wB) {
+    const double w = std::clamp(wB, 0.0, 1.0);
+    return {
+        (1.0 - w) * A[0] + w * B[0],
+        (1.0 - w) * A[1] + w * B[1],
+        (1.0 - w) * A[2] + w * B[2],
+        (1.0 - w) * A[3] + w * B[3],
+    };
 }
 
 void enforcePhysicalState(FirstorderEuler::Conserved& U, double gamma) {
@@ -136,6 +240,76 @@ double spectralRadius(const FirstorderEuler::Conserved& U,
     const double un = u * n[0] + v * n[1];
     const double s = std::abs(un) + c;
     return std::isfinite(s) ? s : 0.0;
+}
+
+double pressureOf(const FirstorderEuler::Conserved& U, double gamma) {
+    const double rho = std::max(1e-14, U[0]);
+    const double u = U[1] / rho;
+    const double v = U[2] / rho;
+    return (gamma - 1.0) * (U[3] - 0.5 * rho * (u * u + v * v));
+}
+
+double edgeEnergySensor(const FirstorderEuler::Conserved& UL,
+                        const FirstorderEuler::Conserved& UR,
+                        double gamma) {
+    const double pL = std::max(1e-12, pressureOf(UL, gamma));
+    const double pR = std::max(1e-12, pressureOf(UR, gamma));
+    const double jump = std::abs(pR - pL) / std::max(1e-12, pR + pL);
+    // Keep baseline dissipation on all faces, increase near strong pressure jumps.
+    return std::clamp(0.1 + 0.9 * jump, 0.1, 1.0);
+}
+
+FirstorderEuler::Conserved physicalFlux(const FirstorderEuler::Conserved& U,
+                                        const FirstorderEuler::Vec2& n,
+                                        double gamma) {
+    const double rho = std::max(1e-10, U[0]);
+    double u = U[1] / rho;
+    double v = U[2] / rho;
+    const double vmag = std::hypot(u, v);
+    if (vmag > 100.0) {
+        const double s = 100.0 / std::max(1e-12, vmag);
+        u *= s;
+        v *= s;
+    }
+    const double p = std::max(1e-10, (gamma - 1.0) * (U[3] - 0.5 * rho * (u * u + v * v)));
+    const double un = u * n[0] + v * n[1];
+    const double rhoE = p / (gamma - 1.0) + 0.5 * rho * (u * u + v * v);
+    return {
+        rho * un,
+        rho * u * un + p * n[0],
+        rho * v * un + p * n[1],
+        (rhoE + p) * un,
+    };
+}
+
+bool finiteConserved(const FirstorderEuler::Conserved& U) {
+    return std::all_of(U.begin(), U.end(), [](double x) { return std::isfinite(x); });
+}
+
+FirstorderEuler::Conserved robustRusanovFlux(const FirstorderEuler::Conserved& UL,
+                                             const FirstorderEuler::Conserved& UR,
+                                             const FirstorderEuler::Vec2& n,
+                                             double gamma) {
+    FirstorderEuler::Conserved ULs = UL;
+    FirstorderEuler::Conserved URs = UR;
+    enforcePhysicalState(ULs, gamma);
+    enforcePhysicalState(URs, gamma);
+
+    const FirstorderEuler::Conserved FL = physicalFlux(ULs, n, gamma);
+    const FirstorderEuler::Conserved FR = physicalFlux(URs, n, gamma);
+    const double smax = std::max(spectralRadius(ULs, n, gamma), spectralRadius(URs, n, gamma));
+
+    return {
+        0.5 * (FL[0] + FR[0]) - 0.5 * smax * (URs[0] - ULs[0]),
+        0.5 * (FL[1] + FR[1]) - 0.5 * smax * (URs[1] - ULs[1]),
+        0.5 * (FL[2] + FR[2]) - 0.5 * smax * (URs[2] - ULs[2]),
+        0.5 * (FL[3] + FR[3]) - 0.5 * smax * (URs[3] - ULs[3]),
+    };
+}
+
+FirstorderEuler::Conserved jumpState(const FirstorderEuler::Conserved& UL,
+                                     const FirstorderEuler::Conserved& UR) {
+    return {UR[0] - UL[0], UR[1] - UL[1], UR[2] - UL[2], UR[3] - UL[3]};
 }
 
 } // namespace
@@ -247,18 +421,80 @@ void FirstorderEuler::buildFacesFromTriangularMesh() {
             throw std::runtime_error(oss.str());
         }
 
-        const auto centerX = [&](std::size_t fid) {
+        const auto center = [&](std::size_t fid) {
             const auto& f = triMesh_->face(fid);
             const auto& p0 = triMesh_->node(static_cast<std::size_t>(f._pointID[0]));
             const auto& p1 = triMesh_->node(static_cast<std::size_t>(f._pointID[1]));
-            return 0.5 * (p0[0] + p1[0]);
+            return Vec2{0.5 * (p0[0] + p1[0]), 0.5 * (p0[1] + p1[1])};
         };
-        std::sort(facesA.begin(), facesA.end(), [&](std::size_t a, std::size_t b) { return centerX(a) < centerX(b); });
-        std::sort(facesB.begin(), facesB.end(), [&](std::size_t a, std::size_t b) { return centerX(a) < centerX(b); });
+
+        Vec2 meanA{0.0, 0.0}, meanB{0.0, 0.0};
+        for (std::size_t fid : facesA) {
+            const Vec2 c = center(fid);
+            meanA[0] += c[0];
+            meanA[1] += c[1];
+        }
+        for (std::size_t fid : facesB) {
+            const Vec2 c = center(fid);
+            meanB[0] += c[0];
+            meanB[1] += c[1];
+        }
+        meanA[0] /= static_cast<double>(facesA.size());
+        meanA[1] /= static_cast<double>(facesA.size());
+        meanB[0] /= static_cast<double>(facesB.size());
+        meanB[1] /= static_cast<double>(facesB.size());
+
+        const Vec2 shift{meanB[0] - meanA[0], meanB[1] - meanA[1]};
+        const double shiftNorm = std::hypot(shift[0], shift[1]);
+        Vec2 tangent{1.0, 0.0};
+        if (shiftNorm > 1e-14) {
+            tangent = Vec2{-shift[1] / shiftNorm, shift[0] / shiftNorm};
+        }
+
+        const auto proj = [&](std::size_t fid) {
+            const Vec2 c = center(fid);
+            return c[0] * tangent[0] + c[1] * tangent[1];
+        };
+
+        std::sort(facesA.begin(), facesA.end(), [&](std::size_t a, std::size_t b) { return proj(a) < proj(b); });
+        std::sort(facesB.begin(), facesB.end(), [&](std::size_t a, std::size_t b) { return proj(a) < proj(b); });
+
+        const auto pairingCost = [&](bool reverseB) {
+            double cost = 0.0;
+            for (std::size_t i = 0; i < facesA.size(); ++i) {
+                const std::size_t j = reverseB ? (facesB.size() - 1 - i) : i;
+                const Vec2 ca = center(facesA[i]);
+                const Vec2 cb = center(facesB[j]);
+                const double dx = (ca[0] + shift[0]) - cb[0];
+                const double dy = (ca[1] + shift[1]) - cb[1];
+                cost += dx * dx + dy * dy;
+            }
+            return cost;
+        };
+
+        const bool reverseB = (pairingCost(true) < pairingCost(false));
 
         for (std::size_t i = 0; i < facesA.size(); ++i) {
             const std::size_t a = facesA[i];
-            const std::size_t b = facesB[i];
+            const std::size_t j = reverseB ? (facesB.size() - 1 - i) : i;
+            const std::size_t b = facesB[j];
+
+            const auto& fa = triMesh_->face(a);
+            const auto& fb = triMesh_->face(b);
+            const double lenA = std::hypot(
+                triMesh_->node(static_cast<std::size_t>(fa._pointID[1]))[0] - triMesh_->node(static_cast<std::size_t>(fa._pointID[0]))[0],
+                triMesh_->node(static_cast<std::size_t>(fa._pointID[1]))[1] - triMesh_->node(static_cast<std::size_t>(fa._pointID[0]))[1]);
+            const double lenB = std::hypot(
+                triMesh_->node(static_cast<std::size_t>(fb._pointID[1]))[0] - triMesh_->node(static_cast<std::size_t>(fb._pointID[0]))[0],
+                triMesh_->node(static_cast<std::size_t>(fb._pointID[1]))[1] - triMesh_->node(static_cast<std::size_t>(fb._pointID[0]))[1]);
+            const double relLenDiff = std::abs(lenA - lenB) / std::max(1e-12, std::max(lenA, lenB));
+            if (relLenDiff > 0.3) {
+                std::ostringstream oss;
+                oss << "Periodic face-length mismatch pairing " << titleA << "->" << titleB
+                    << " at local index " << i << ": lenA=" << lenA << " lenB=" << lenB;
+                throw std::runtime_error(oss.str());
+            }
+
             periodicPartnerFace[a] = static_cast<int>(b);
             periodicPartnerFace[b] = static_cast<int>(a);
         }
@@ -534,8 +770,19 @@ void FirstorderEuler::writeSolutionVtk(const std::string& filePath) const {
 
 void FirstorderEuler::advance(bool stopByTime) {
     std::cout << "    it           t          dt        ||R||2\n";
+    const double cflBase = config_.cfl;
+    double cflWork = cflBase;
 
     while (iteration_ < config_.maxIterations && (!stopByTime || time_ < config_.finalTime)) {
+        config_.cfl = cflWork;
+        const std::vector<Conserved> Ubackup = U_;
+
+        const std::size_t repairedBeforeFlux = sanitizeSolutionState();
+        if (config_.enableDebugPrints && repairedBeforeFlux > 0 && iteration_ % 10 == 0) {
+            std::cout << "[debug] repaired " << repairedBeforeFlux
+                      << " non-physical cell states before flux evaluation\n";
+        }
+
         auto edges = computeEdgeFluxesAndWaveSpeeds();
         assembleResidualFromEdgeFluxes(edges);
 
@@ -556,13 +803,24 @@ void FirstorderEuler::advance(bool stopByTime) {
             throw std::runtime_error("Computed non-finite/invalid dt.");
         }
 
+        sanitizeSolutionState();
+
         const double normR = l2Norm(residual_);
         if (!std::isfinite(normR)) {
-            const std::string dumpName = config_.outputPrefix + "_nan_iter" + std::to_string(iteration_) + ".vtk";
-            writeSolutionVtk(dumpName);
-            throw std::runtime_error("Residual norm became non-finite (NaN/Inf).\n"
-                                     "Wrote debug VTK: " + dumpName + "\n"
-                                     "Try smaller CFL or verify BC/mesh consistency.");
+            U_ = Ubackup;
+            cflWork *= 0.5;
+            if (config_.enableDebugPrints) {
+                std::cout << "[debug] non-finite residual at it=" << iteration_
+                          << ", retrying with reduced CFL=" << cflWork << "\n";
+            }
+            if (cflWork < 1e-4 * cflBase) {
+                const std::string dumpName = config_.outputPrefix + "_nan_iter" + std::to_string(iteration_) + ".vtk";
+                writeSolutionVtk(dumpName);
+                throw std::runtime_error("Residual norm remained non-finite even after CFL backoff.\n"
+                                         "Wrote debug VTK: " + dumpName + "\n"
+                                         "Try smaller CFL or verify BC/mesh consistency.");
+            }
+            continue;
         }
         if (iteration_ % 10 == 0 || (stopByTime && time_ >= config_.finalTime)) {
             std::cout << iteration_ << " " << time_ << " " << dtUsed << " " << normR << "\n";
@@ -586,6 +844,21 @@ void FirstorderEuler::advance(bool stopByTime) {
             break;
         }
     }
+
+    config_.cfl = cflBase;
+}
+
+std::size_t FirstorderEuler::sanitizeSolutionState() {
+    std::size_t repaired = 0;
+    for (auto& Ui : U_) {
+        const Conserved Uold = Ui;
+        enforcePhysicalState(Ui, config_.gamma);
+        const bool changed = (Ui[0] != Uold[0]) || (Ui[1] != Uold[1]) || (Ui[2] != Uold[2]) || (Ui[3] != Uold[3]);
+        if (changed) {
+            ++repaired;
+        }
+    }
+    return repaired;
 }
 
 std::vector<FirstorderEuler::EdgeFluxContribution> FirstorderEuler::computeEdgeFluxesAndWaveSpeeds() const {
@@ -593,7 +866,6 @@ std::vector<FirstorderEuler::EdgeFluxContribution> FirstorderEuler::computeEdgeF
     edges.reserve(interiorFaces_.size() + boundaryFaces_.size());
 
     const auto flux = makeFlux(config_.fluxScheme);
-    const EulerBoundaryConditions bcModel = makeBoundaryConditions(config_);
 
     for (const auto& f : interiorFaces_) {
         const Conserved& UL = U_.at(f.elemL);
@@ -611,7 +883,22 @@ std::vector<FirstorderEuler::EdgeFluxContribution> FirstorderEuler::computeEdgeF
         const Vec2 nUnit = normalized(nFace);
         const Eigen::Vector2d n(nUnit[0], nUnit[1]);
 
-        const Conserved F = fromEigen((*flux)(toEigen(UL), toEigen(UR), config_.gamma, n));
+        Conserved F = fromEigen((*flux)(toEigen(UL), toEigen(UR), config_.gamma, n));
+
+        const double smax = std::max(spectralRadius(UL, nUnit, config_.gamma),
+                                     spectralRadius(UR, nUnit, config_.gamma));
+        const double sensor = edgeEnergySensor(UL, UR, config_.gamma);
+        const Conserved dU = jumpState(UL, UR);
+        const double coeffConv = 0.10 * sensor;
+        const double coeffEnergy = 0.35 * sensor;
+        F[0] -= 0.5 * coeffConv * smax * dU[0];
+        F[1] -= 0.5 * coeffConv * smax * dU[1];
+        F[2] -= 0.5 * coeffConv * smax * dU[2];
+        F[3] -= 0.5 * coeffEnergy * smax * dU[3];
+
+        if (!finiteConserved(F)) {
+            F = robustRusanovFlux(UL, UR, nUnit, config_.gamma);
+        }
 
         EdgeFluxContribution edge;
         edge.ownerElem = f.elemL;
@@ -619,8 +906,7 @@ std::vector<FirstorderEuler::EdgeFluxContribution> FirstorderEuler::computeEdgeF
         edge.normal = nFace;          // store the *oriented* normal
         edge.edgeLength = f.length;
         edge.flux = F;
-        edge.spectralRadius = std::max(spectralRadius(UL, nUnit, config_.gamma),
-                                    spectralRadius(UR, nUnit, config_.gamma));
+        edge.spectralRadius = smax;
         edges.push_back(edge);
     }
 
@@ -628,7 +914,8 @@ std::vector<FirstorderEuler::EdgeFluxContribution> FirstorderEuler::computeEdgeF
 
     for (const auto& f : boundaryFaces_) {
         const Conserved& UL = U_.at(f.elem);
-        EulerBoundaryConditions::Type kind = bcModel.typeFromCurveTitle(f.boundaryTitle);
+        const BoundaryKind kind = boundaryKindFromTitle(f.boundaryTitle, config_);
+        const EulerBoundaryConditions bcModel = makeBoundaryConditions(config_);
 
         Vec2 nFace = f.normal;
         const Vec2 c = cellCentroid(f.elem);
@@ -641,13 +928,10 @@ std::vector<FirstorderEuler::EdgeFluxContribution> FirstorderEuler::computeEdgeF
         const Vec2 nUnit = normalized(nFace);
         const Eigen::Vector2d n(nUnit[0], nUnit[1]);
 
-        // --- REPLACE boundaryFlux with ghost-state + SAME numerical flux ---
         EulerBoundaryConditions::Context ctx;
         ctx.time = time_;
         ctx.faceCenter = fFixed.center;
-
-        // IMPORTANT: pass UNIT normal into boundaryState (BC logic should use unit normal)
-        const Conserved UR = bcModel.boundaryState(kind, UL, nUnit, ctx);
+        const Conserved UR = bcModel.boundaryState(toBoundaryType(kind), UL, nUnit, ctx);
 
         const Conserved F = fromEigen((*flux)(toEigen(UL), toEigen(UR), config_.gamma, n));
 
@@ -670,26 +954,26 @@ std::vector<FirstorderEuler::EdgeFluxContribution> FirstorderEuler::computeEdgeF
 FirstorderEuler::Conserved FirstorderEuler::computeBoundaryFluxFromModules(
     const BoundaryFace& f,
     const Conserved& UL,
-    EulerBoundaryConditions::Type kind) const {
+    BoundaryKind kind) const {
     const Eigen::Vector4d up = toEigen(UL);
     const Vec2 nUnit = normalized(f.normal);
     const Eigen::Vector2d n(nUnit[0], nUnit[1]);
 
     std::unique_ptr<boundaryFlux> faceFlux;
     switch (kind) {
-    case EulerBoundaryConditions::Type::InflowSteady:
-    case EulerBoundaryConditions::Type::InflowUnsteady: {
-        const bool transient = (kind == EulerBoundaryConditions::Type::InflowUnsteady);
+    case BoundaryKind::InflowSteady:
+    case BoundaryKind::InflowUnsteady: {
+        const bool transient = (kind == BoundaryKind::InflowUnsteady);
         faceFlux = std::make_unique<inletFlux>(config_.rho0, config_.a0, config_.alpha, time_, transient);
         break;
     }
-    case EulerBoundaryConditions::Type::OutflowSubsonic:
+    case BoundaryKind::OutflowSubsonic:
         faceFlux = std::make_unique<outletFlux>(config_.pout);
         break;
-    case EulerBoundaryConditions::Type::WallSlip:
+    case BoundaryKind::WallSlip:
         faceFlux = std::make_unique<wallFlux>();
         break;
-    case EulerBoundaryConditions::Type::Periodic:
+    case BoundaryKind::Periodic:
         throw std::runtime_error("Periodic boundary was routed to boundary-flux evaluation.");
     }
 
@@ -789,6 +1073,8 @@ std::vector<double> FirstorderEuler::computeLocalDtFromWaveSpeeds(const std::vec
 
 void FirstorderEuler::updateStateGlobalDt(double dt) {
     const int maxCuts = 10;
+    constexpr double maxRelativeEnergyChange = 0.25;
+    constexpr double fallbackBlend = 0.02;
 
     for (std::size_t i = 0; i < U_.size(); ++i) {
         double dtUse = dt;
@@ -801,17 +1087,23 @@ void FirstorderEuler::updateStateGlobalDt(double dt) {
                 Utry[k] -= scale * residual_[i][k];
             }
 
-            // check physical
-            const double rho = Utry[0];
-            const double p = cellPressure(Utry);
-            if (std::isfinite(rho) && std::isfinite(p) && rho > 1e-10 && p > 1e-10) {
+            const double oldE = std::max(1e-12, std::abs(Uold[3]));
+            const double relEnergyChange = std::abs(Utry[3] - Uold[3]) / oldE;
+            const bool energyStepOK = std::isfinite(relEnergyChange) && relEnergyChange <= maxRelativeEnergyChange;
+            const bool pressureStepOK = hasReasonablePressureAndInternalEnergy(Utry, Uold, config_.gamma);
+
+            if (energyStepOK && pressureStepOK) {
                 U_[i] = Utry;
                 break;
             }
 
             if (cut == maxCuts) {
-                U_[i] = Utry;
-                enforcePhysicalState(U_[i], config_.gamma);
+                const Conserved Usafe = conservativeBlend(Uold, Utry, fallbackBlend);
+                if (hasReasonablePressureAndInternalEnergy(Usafe, Uold, config_.gamma)) {
+                    U_[i] = Usafe;
+                } else {
+                    U_[i] = Uold;
+                }
             } else {
                 dtUse *= 0.5;
             }
@@ -821,12 +1113,41 @@ void FirstorderEuler::updateStateGlobalDt(double dt) {
 
 
 void FirstorderEuler::updateStateLocalDt(const std::vector<double>& dtLocal) {
+    const int maxCuts = 10;
+    constexpr double maxRelativeEnergyChange = 0.25;
+    constexpr double fallbackBlend = 0.02;
+
     for (std::size_t i = 0; i < U_.size(); ++i) {
-        const double scale = dtLocal[i] / area_[i];
-        for (std::size_t k = 0; k < U_[i].size(); ++k) {
-            U_[i][k] -= scale * residual_[i][k];
+        double dtUse = dtLocal[i];
+        const Conserved Uold = U_[i];
+
+        for (int cut = 0; cut <= maxCuts; ++cut) {
+            Conserved Utry = Uold;
+            const double scale = dtUse / area_[i];
+            for (std::size_t k = 0; k < Utry.size(); ++k) {
+                Utry[k] -= scale * residual_[i][k];
+            }
+
+            const double oldE = std::max(1e-12, std::abs(Uold[3]));
+            const double relEnergyChange = std::abs(Utry[3] - Uold[3]) / oldE;
+            const bool energyStepOK = std::isfinite(relEnergyChange) && relEnergyChange <= maxRelativeEnergyChange;
+            const bool pressureStepOK = hasReasonablePressureAndInternalEnergy(Utry, Uold, config_.gamma);
+            if (energyStepOK && pressureStepOK) {
+                U_[i] = Utry;
+                break;
+            }
+
+            if (cut == maxCuts) {
+                const Conserved Usafe = conservativeBlend(Uold, Utry, fallbackBlend);
+                if (hasReasonablePressureAndInternalEnergy(Usafe, Uold, config_.gamma)) {
+                    U_[i] = Usafe;
+                } else {
+                    U_[i] = Uold;
+                }
+            } else {
+                dtUse *= 0.5;
+            }
         }
-        enforcePhysicalState(U_[i], config_.gamma);
     }
 }
 
@@ -839,24 +1160,23 @@ double FirstorderEuler::cellPressure(const Conserved& U) const {
 }
 
 void FirstorderEuler::printBoundaryConditionSummary() const {
-    const EulerBoundaryConditions bcModel = makeBoundaryConditions(config_);
     std::size_t nInflow = 0, nOutflow = 0, nWall = 0, nPeriodic = 0;
     std::unordered_map<std::string, std::size_t> perTitle;
 
     for (const auto& f : boundaryFaces_) {
         perTitle[f.boundaryTitle] += 1;
-        switch (bcModel.typeFromCurveTitle(f.boundaryTitle)) {
-        case EulerBoundaryConditions::Type::InflowSteady:
-        case EulerBoundaryConditions::Type::InflowUnsteady:
+        switch (boundaryKindFromTitle(f.boundaryTitle, config_)) {
+        case BoundaryKind::InflowSteady:
+        case BoundaryKind::InflowUnsteady:
             ++nInflow;
             break;
-        case EulerBoundaryConditions::Type::OutflowSubsonic:
+        case BoundaryKind::OutflowSubsonic:
             ++nOutflow;
             break;
-        case EulerBoundaryConditions::Type::WallSlip:
+        case BoundaryKind::WallSlip:
             ++nWall;
             break;
-        case EulerBoundaryConditions::Type::Periodic:
+        case BoundaryKind::Periodic:
             ++nPeriodic;
             break;
         }
@@ -934,16 +1254,85 @@ void FirstorderEuler::printIterationDiagnostics(const std::vector<EdgeFluxContri
             if (ed.ownerElem == cellID || ed.neighborElem == cellID) {
                 // sign: owner adds +F, neighbor adds -F
                 const double sgn = (ed.ownerElem == cellID) ? +1.0 : -1.0;
+                const bool boundaryEdge = (ed.ownerElem == ed.neighborElem);
+
+                const Conserved& Uowner = U_.at(ed.ownerElem);
+                const double pOwner = cellPressure(Uowner);
+                double pNeighbor = pOwner;
+                if (!boundaryEdge) {
+                    pNeighbor = cellPressure(U_.at(ed.neighborElem));
+                }
+
                 std::cout << "    edge#" << ei
                         << " sgn=" << sgn
+                        << " owner=" << ed.ownerElem
+                        << " neigh=" << ed.neighborElem
+                        << " bnd=" << (boundaryEdge ? 1 : 0)
                         << " L=" << ed.edgeLength
                         << " spec=" << ed.spectralRadius
+                        << " pOwner=" << pOwner
+                        << " pNeigh=" << pNeighbor
                         << " F=[" << ed.flux[0] << "," << ed.flux[1] << "," << ed.flux[2] << "," << ed.flux[3] << "]\n";
             }
         }
     };
+    dumpCellFluxContrib(pMinCell);
     dumpCellFluxContrib(pMaxCell);
     dumpCellFluxContrib(rMaxCell);
+
+    // Targeted debug probe for dominant pressure/flux cells in current run.
+    const auto dumpCellPrimitiveAndScale = [&](std::size_t cellID) {
+        if (cellID >= U_.size() || cellID >= area_.size() || cellID >= perimeter_.size()) {
+            std::cout << "[debug]   probe cell " << cellID << " is out of range.\n";
+            return;
+        }
+        const Conserved& Uc = U_[cellID];
+        const double rho = std::max(1e-14, Uc[0]);
+        const double u = Uc[1] / rho;
+        const double v = Uc[2] / rho;
+        const double p = cellPressure(Uc);
+        const double rhoE = Uc[3];
+
+        const double dchar = 2.0 * area_[cellID] / std::max(1e-12, perimeter_[cellID]);
+        const double dtCell = (dtLocal != nullptr && cellID < dtLocal->size()) ? (*dtLocal)[cellID] : dtUsed;
+        const double dtOverA = dtCell / std::max(1e-14, area_[cellID]);
+
+        std::cout << "[debug]   probe cell=" << cellID
+                  << " rho=" << rho
+                  << " u=" << u
+                  << " v=" << v
+                  << " p=" << p
+                  << " rhoE=" << rhoE
+                  << " A=" << area_[cellID]
+                  << " P=" << perimeter_[cellID]
+                  << " dchar=" << dchar
+                  << " dt=" << dtCell
+                  << " dt/A=" << dtOverA
+                  << " RE=" << residual_[cellID][3]
+                  << "\n";
+    };
+
+    dumpCellPrimitiveAndScale(pMinCell);
+    dumpCellPrimitiveAndScale(pMaxCell);
+
+    if (fluxMaxEdge < edges.size()) {
+        const auto& eProbe = edges[fluxMaxEdge];
+        const bool boundaryProbe = (eProbe.ownerElem == eProbe.neighborElem);
+
+        double reProbeOwner = eProbe.edgeLength * eProbe.flux[3];
+        double reProbeNeigh = boundaryProbe ? reProbeOwner : -eProbe.edgeLength * eProbe.flux[3];
+
+        std::cout << "[debug]   probe edge=" << fluxMaxEdge
+                  << " owner=" << eProbe.ownerElem
+                  << " neigh=" << eProbe.neighborElem
+                  << " bnd=" << (boundaryProbe ? 1 : 0)
+                  << " L=" << eProbe.edgeLength
+                  << " spec=" << eProbe.spectralRadius
+                  << " F3=" << eProbe.flux[3]
+                  << " edgeRE(owner)=" << reProbeOwner
+                  << " edgeRE(neigh)=" << reProbeNeigh
+                  << "\n";
+    }
 
     std::cout << "[debug] it=" << iteration_
               << " t=" << time_
@@ -971,21 +1360,22 @@ double FirstorderEuler::maxWallBoundaryMassFlux() const {
 
     const EulerBoundaryConditions bcModel = makeBoundaryConditions(config_);
     const auto flux = makeFlux(config_.fluxScheme);
+
     double maxAbsMassFlux = 0.0;
     for (const auto& f : boundaryFaces_) {
-        auto kind = bcModel.typeFromCurveTitle(f.boundaryTitle);
-        if (kind != EulerBoundaryConditions::Type::WallSlip) {
+        const BoundaryKind kind = boundaryKindFromTitle(f.boundaryTitle, config_);
+        if (kind != BoundaryKind::WallSlip) {
             continue;
         }
 
         EulerBoundaryConditions::Context ctx;
         ctx.time = time_;
         ctx.faceCenter = f.center;
+
         const Conserved UL = U_.at(f.elem);
         const Vec2 nUnit = normalized(f.normal);
-        const Conserved UR = bcModel.boundaryState(kind, UL, nUnit, ctx);
-
         const Eigen::Vector2d n(nUnit[0], nUnit[1]);
+        const Conserved UR = bcModel.boundaryState(toBoundaryType(kind), UL, nUnit, ctx);
         const Conserved F = fromEigen((*flux)(toEigen(UL), toEigen(UR), config_.gamma, n));
         maxAbsMassFlux = std::max(maxAbsMassFlux, std::abs(F[0]));
     }
