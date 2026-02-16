@@ -648,7 +648,6 @@ std::vector<FirstorderEuler::EdgeFluxContribution> FirstorderEuler::computeEdgeF
     edges.reserve(interiorFaces_.size() + boundaryFaces_.size());
 
     const auto flux = makeFlux(config_.fluxScheme);
-    const EulerBoundaryConditions bcModel = makeBoundaryConditions(config_);
 
     for (const auto& f : interiorFaces_) {
         const Conserved& UL = U_.at(f.elemL);
@@ -709,10 +708,7 @@ std::vector<FirstorderEuler::EdgeFluxContribution> FirstorderEuler::computeEdgeF
         edge.normal = nFace;
         edge.edgeLength = f.length;
         edge.flux = F;
-        edge.spectralRadius = std::max(
-            spectralRadius(UL, nUnit, config_.gamma),
-            spectralRadius(UR, nUnit, config_.gamma)
-        );
+        edge.spectralRadius = spectralRadius(UL, nUnit, config_.gamma);
         edges.push_back(edge);
     }
 
