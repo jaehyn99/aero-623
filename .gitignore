@@ -21,3 +21,6 @@ external/*
 
 # Other files
 *.zip
+
+# Build directories
+build*/
