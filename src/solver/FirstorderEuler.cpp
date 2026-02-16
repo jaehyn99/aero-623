@@ -842,6 +842,7 @@ std::vector<double> FirstorderEuler::computeLocalDtFromWaveSpeeds(const std::vec
 
 void FirstorderEuler::updateStateGlobalDt(double dt) {
     const int maxCuts = 10;
+    constexpr double maxRelativeEnergyChange = 0.25;
 
     for (std::size_t i = 0; i < U_.size(); ++i) {
         double dtUse = dt;
@@ -854,10 +855,13 @@ void FirstorderEuler::updateStateGlobalDt(double dt) {
                 Utry[k] -= scale * residual_[i][k];
             }
 
-            // check physical
             const double rho = Utry[0];
             const double p = cellPressure(Utry);
-            if (std::isfinite(rho) && std::isfinite(p) && rho > 1e-10 && p > 1e-10) {
+            const double oldE = std::max(1e-12, std::abs(Uold[3]));
+            const double relEnergyChange = std::abs(Utry[3] - Uold[3]) / oldE;
+            const bool energyStepOK = std::isfinite(relEnergyChange) && relEnergyChange <= maxRelativeEnergyChange;
+
+            if (std::isfinite(rho) && std::isfinite(p) && rho > 1e-10 && p > 1e-10 && energyStepOK) {
                 U_[i] = Utry;
                 break;
             }
@@ -875,6 +879,7 @@ void FirstorderEuler::updateStateGlobalDt(double dt) {
 
 void FirstorderEuler::updateStateLocalDt(const std::vector<double>& dtLocal) {
     const int maxCuts = 10;
+    constexpr double maxRelativeEnergyChange = 0.25;
 
     for (std::size_t i = 0; i < U_.size(); ++i) {
         double dtUse = dtLocal[i];
@@ -889,7 +894,10 @@ void FirstorderEuler::updateStateLocalDt(const std::vector<double>& dtLocal) {
 
             const double rho = Utry[0];
             const double p = cellPressure(Utry);
-            if (std::isfinite(rho) && std::isfinite(p) && rho > 1e-10 && p > 1e-10) {
+            const double oldE = std::max(1e-12, std::abs(Uold[3]));
+            const double relEnergyChange = std::abs(Utry[3] - Uold[3]) / oldE;
+            const bool energyStepOK = std::isfinite(relEnergyChange) && relEnergyChange <= maxRelativeEnergyChange;
+            if (std::isfinite(rho) && std::isfinite(p) && rho > 1e-10 && p > 1e-10 && energyStepOK) {
                 U_[i] = Utry;
                 break;
             }
