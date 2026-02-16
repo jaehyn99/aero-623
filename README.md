@@ -29,3 +29,7 @@ make -j
 
 # Refinement: in "/aero-623"
 ./bin/main.exe refine projects/Project-1/mesh_coarse.gri projects/Project-1/bladeupper.txt projects/Project-1/bladelower.txt projects/Project-1/mesh_refined_out.gri  (alpha-sclar for size function) (refinement iteration)
+
+# Run the first order solver
+./bin/main.exe --mode steady-local --prefix projects/Project-1/mesh_refined_2394
+./bin/main.exe --mode steady-global --mesh projects/Project-1/mesh_coarse.gri
