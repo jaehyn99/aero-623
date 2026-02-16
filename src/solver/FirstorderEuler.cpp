@@ -139,6 +139,43 @@ FirstorderEuler::Conserved fromEigen(const Eigen::Vector4d& u) {
     return {u(0), u(1), u(2), u(3)};
 }
 
+bool hasReasonablePressureAndInternalEnergy(const FirstorderEuler::Conserved& Unew,
+                                            const FirstorderEuler::Conserved& Uold,
+                                            double gamma) {
+    constexpr double rhoFloor = 1e-10;
+    constexpr double pFloor = 1e-10;
+    constexpr double minPressureRatio = 0.7;
+
+    const double rhoNew = Unew[0];
+    if (!std::isfinite(rhoNew) || rhoNew <= rhoFloor) {
+        return false;
+    }
+
+    const auto pressureOf = [&](const FirstorderEuler::Conserved& U) {
+        const double rho = std::max(1e-14, U[0]);
+        const double u = U[1] / rho;
+        const double v = U[2] / rho;
+        return (gamma - 1.0) * (U[3] - 0.5 * rho * (u * u + v * v));
+    };
+
+    const double pOld = pressureOf(Uold);
+    const double pNew = pressureOf(Unew);
+    if (!std::isfinite(pOld) || !std::isfinite(pNew) || pNew <= pFloor) {
+        return false;
+    }
+
+    const double minAllowed = minPressureRatio * std::max(pFloor, pOld);
+    if (pNew < minAllowed) {
+        return false;
+    }
+
+    const double rho = rhoNew;
+    const double u = Unew[1] / rho;
+    const double v = Unew[2] / rho;
+    const double eInt = Unew[3] - 0.5 * rho * (u * u + v * v);
+    return std::isfinite(eInt) && eInt > pFloor / (gamma - 1.0);
+}
+
 void enforcePhysicalState(FirstorderEuler::Conserved& U, double gamma) {
     constexpr double rhoFloor = 1e-10;
     constexpr double pFloor = 1e-10;
@@ -855,13 +892,12 @@ void FirstorderEuler::updateStateGlobalDt(double dt) {
                 Utry[k] -= scale * residual_[i][k];
             }
 
-            const double rho = Utry[0];
-            const double p = cellPressure(Utry);
             const double oldE = std::max(1e-12, std::abs(Uold[3]));
             const double relEnergyChange = std::abs(Utry[3] - Uold[3]) / oldE;
             const bool energyStepOK = std::isfinite(relEnergyChange) && relEnergyChange <= maxRelativeEnergyChange;
+            const bool pressureStepOK = hasReasonablePressureAndInternalEnergy(Utry, Uold, config_.gamma);
 
-            if (std::isfinite(rho) && std::isfinite(p) && rho > 1e-10 && p > 1e-10 && energyStepOK) {
+            if (energyStepOK && pressureStepOK) {
                 U_[i] = Utry;
                 break;
             }
@@ -892,12 +928,11 @@ void FirstorderEuler::updateStateLocalDt(const std::vector<double>& dtLocal) {
                 Utry[k] -= scale * residual_[i][k];
             }
 
-            const double rho = Utry[0];
-            const double p = cellPressure(Utry);
             const double oldE = std::max(1e-12, std::abs(Uold[3]));
             const double relEnergyChange = std::abs(Utry[3] - Uold[3]) / oldE;
             const bool energyStepOK = std::isfinite(relEnergyChange) && relEnergyChange <= maxRelativeEnergyChange;
-            if (std::isfinite(rho) && std::isfinite(p) && rho > 1e-10 && p > 1e-10 && energyStepOK) {
+            const bool pressureStepOK = hasReasonablePressureAndInternalEnergy(Utry, Uold, config_.gamma);
+            if (energyStepOK && pressureStepOK) {
                 U_[i] = Utry;
                 break;
             }
