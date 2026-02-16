@@ -648,7 +648,6 @@ std::vector<FirstorderEuler::EdgeFluxContribution> FirstorderEuler::computeEdgeF
     edges.reserve(interiorFaces_.size() + boundaryFaces_.size());
 
     const auto flux = makeFlux(config_.fluxScheme);
-    const EulerBoundaryConditions bcModel = makeBoundaryConditions(config_);
 
     for (const auto& f : interiorFaces_) {
         const Conserved& UL = U_.at(f.elemL);
@@ -684,6 +683,7 @@ std::vector<FirstorderEuler::EdgeFluxContribution> FirstorderEuler::computeEdgeF
     for (const auto& f : boundaryFaces_) {
         const Conserved& UL = U_.at(f.elem);
         const BoundaryKind kind = boundaryKindFromTitle(f.boundaryTitle, config_);
+        const EulerBoundaryConditions bcModel = makeBoundaryConditions(config_);
 
         Vec2 nFace = f.normal;
         const Vec2 c = cellCentroid(f.elem);
@@ -1007,14 +1007,29 @@ void FirstorderEuler::printIterationDiagnostics(const std::vector<EdgeFluxContri
             if (ed.ownerElem == cellID || ed.neighborElem == cellID) {
                 // sign: owner adds +F, neighbor adds -F
                 const double sgn = (ed.ownerElem == cellID) ? +1.0 : -1.0;
+                const bool boundaryEdge = (ed.ownerElem == ed.neighborElem);
+
+                const Conserved& Uowner = U_.at(ed.ownerElem);
+                const double pOwner = cellPressure(Uowner);
+                double pNeighbor = pOwner;
+                if (!boundaryEdge) {
+                    pNeighbor = cellPressure(U_.at(ed.neighborElem));
+                }
+
                 std::cout << "    edge#" << ei
                         << " sgn=" << sgn
+                        << " owner=" << ed.ownerElem
+                        << " neigh=" << ed.neighborElem
+                        << " bnd=" << (boundaryEdge ? 1 : 0)
                         << " L=" << ed.edgeLength
                         << " spec=" << ed.spectralRadius
+                        << " pOwner=" << pOwner
+                        << " pNeigh=" << pNeighbor
                         << " F=[" << ed.flux[0] << "," << ed.flux[1] << "," << ed.flux[2] << "," << ed.flux[3] << "]\n";
             }
         }
     };
+    dumpCellFluxContrib(pMinCell);
     dumpCellFluxContrib(pMaxCell);
     dumpCellFluxContrib(rMaxCell);
 
