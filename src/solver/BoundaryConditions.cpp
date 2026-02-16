@@ -203,6 +203,16 @@ EulerBoundaryConditions::Conserved EulerBoundaryConditions::outflowSubsonicState
     const double pI  = std::max(1e-14, pressure(UI));
     const double cI  = std::sqrt(gam * pI / rhoI);
 
+    // --- Guard: if locally supersonic outflow, do NOT impose pout ---
+    // Normal Mach number (based on interior state)
+    const double Mn = unI / std::max(1e-14, cI);
+
+    // If characteristics are all leaving the domain, extrapolate
+    if (Mn >= 1.0) {
+        return UI; // UR = UL
+    }
+
+
     // ---- NEW: handle regime robustness ----
     // 1) Supersonic outflow: DO NOT impose pressure; extrapolate
     if (unI >= cI) {
