@@ -945,6 +945,7 @@ std::vector<FirstorderEuler::EdgeFluxContribution> FirstorderEuler::computeEdgeF
             spectralRadius(UL, nUnit, config_.gamma),
             spectralRadius(UR, nUnit, config_.gamma)
         );
+
         edges.push_back(edge);
     }
 
