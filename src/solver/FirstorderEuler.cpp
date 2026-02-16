@@ -788,14 +788,37 @@ std::vector<double> FirstorderEuler::computeLocalDtFromWaveSpeeds(const std::vec
 }
 
 void FirstorderEuler::updateStateGlobalDt(double dt) {
+    const int maxCuts = 10;
+
     for (std::size_t i = 0; i < U_.size(); ++i) {
-        const double scale = dt / area_[i];
-        for (std::size_t k = 0; k < U_[i].size(); ++k) {
-            U_[i][k] -= scale * residual_[i][k];
+        double dtUse = dt;
+        Conserved Uold = U_[i];
+
+        for (int cut = 0; cut <= maxCuts; ++cut) {
+            Conserved Utry = Uold;
+            const double scale = dtUse / area_[i];
+            for (std::size_t k = 0; k < 4; ++k) {
+                Utry[k] -= scale * residual_[i][k];
+            }
+
+            // check physical
+            const double rho = Utry[0];
+            const double p = cellPressure(Utry);
+            if (std::isfinite(rho) && std::isfinite(p) && rho > 1e-10 && p > 1e-10) {
+                U_[i] = Utry;
+                break;
+            }
+
+            if (cut == maxCuts) {
+                U_[i] = Utry;
+                enforcePhysicalState(U_[i], config_.gamma);
+            } else {
+                dtUse *= 0.5;
+            }
         }
-        enforcePhysicalState(U_[i], config_.gamma);
     }
 }
+
 
 void FirstorderEuler::updateStateLocalDt(const std::vector<double>& dtLocal) {
     for (std::size_t i = 0; i < U_.size(); ++i) {
@@ -904,6 +927,24 @@ void FirstorderEuler::printIterationDiagnostics(const std::vector<EdgeFluxContri
         }
     }
 
+    auto dumpCellFluxContrib = [&](std::size_t cellID) {
+        std::cout << "[debug]   cell " << cellID << " face flux contributions:\n";
+        for (std::size_t ei = 0; ei < edges.size(); ++ei) {
+            const auto& ed = edges[ei];
+            if (ed.ownerElem == cellID || ed.neighborElem == cellID) {
+                // sign: owner adds +F, neighbor adds -F
+                const double sgn = (ed.ownerElem == cellID) ? +1.0 : -1.0;
+                std::cout << "    edge#" << ei
+                        << " sgn=" << sgn
+                        << " L=" << ed.edgeLength
+                        << " spec=" << ed.spectralRadius
+                        << " F=[" << ed.flux[0] << "," << ed.flux[1] << "," << ed.flux[2] << "," << ed.flux[3] << "]\n";
+            }
+        }
+    };
+    dumpCellFluxContrib(pMaxCell);
+    dumpCellFluxContrib(rMaxCell);
+
     std::cout << "[debug] it=" << iteration_
               << " t=" << time_
               << " dt=" << dtUsed
@@ -941,9 +982,9 @@ double FirstorderEuler::maxWallBoundaryMassFlux() const {
         ctx.time = time_;
         ctx.faceCenter = f.center;
         const Conserved UL = U_.at(f.elem);
-        const Conserved UR = bcModel.boundaryState(kind, UL, f.normal, ctx);
-
         const Vec2 nUnit = normalized(f.normal);
+        const Conserved UR = bcModel.boundaryState(kind, UL, nUnit, ctx);
+
         const Eigen::Vector2d n(nUnit[0], nUnit[1]);
         const Conserved F = fromEigen((*flux)(toEigen(UL), toEigen(UR), config_.gamma, n));
         maxAbsMassFlux = std::max(maxAbsMassFlux, std::abs(F[0]));

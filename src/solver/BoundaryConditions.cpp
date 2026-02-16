@@ -193,15 +193,40 @@ EulerBoundaryConditions::Conserved EulerBoundaryConditions::inflowUnsteadyState(
 EulerBoundaryConditions::Conserved EulerBoundaryConditions::outflowSubsonicState(
     const Conserved& UI,
     const Vec2& nRaw) const {
+
     const Vec2 n = normalize(nRaw);
     const double gam = config_.gamma;
 
     const double rhoI = std::max(1e-14, UI[0]);
     const Vec2 VI{UI[1] / rhoI, UI[2] / rhoI};
     const double unI = dot(VI, n);
-    const double pI = std::max(1e-14, pressure(UI));
-    const double cI = std::sqrt(gam * pI / rhoI);
+    const double pI  = std::max(1e-14, pressure(UI));
+    const double cI  = std::sqrt(gam * pI / rhoI);
 
+    // ---- NEW: handle regime robustness ----
+    // 1) Supersonic outflow: DO NOT impose pressure; extrapolate
+    if (unI >= cI) {
+        return UI;
+    }
+
+    // 2) Backflow at outflow boundary: must prescribe inflow-like data
+    // A simple robust choice: use farfield inflow state (steady) or clamp normal velocity to 0.
+    if (unI < 0.0) {
+        // Option A (recommended): treat as inflow with total conditions
+        return inflowSteadyState(UI, n, config_.pt);
+
+        // Option B (less physical but sometimes stabilizes): prevent inflow
+        // Conserved Ub = UI;
+        // const Vec2 Vt{VI[0] - unI*n[0], VI[1] - unI*n[1]};
+        // const double unb = 0.0;
+        // const Vec2 Vb{Vt[0] + unb*n[0], Vt[1] + unb*n[1]};
+        // Ub[1] = rhoI*Vb[0];
+        // Ub[2] = rhoI*Vb[1];
+        // Ub[3] = pI/(gam-1.0) + 0.5*rhoI*dot(Vb,Vb);
+        // return Ub;
+    }
+
+    // ---- Existing subsonic outflow logic (pressure specified) ----
     const double Jp = unI + 2.0 * cI / (gam - 1.0);
     const double Splus = pI / std::pow(rhoI, gam);
 
