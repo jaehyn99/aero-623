@@ -1033,6 +1033,75 @@ void FirstorderEuler::printIterationDiagnostics(const std::vector<EdgeFluxContri
     dumpCellFluxContrib(pMaxCell);
     dumpCellFluxContrib(rMaxCell);
 
+    // Targeted debug probe for TE instability tracking.
+    // Focus pair requested in debugging session: cells 11 and 12, edge 57.
+    const auto dumpCellPrimitiveAndScale = [&](std::size_t cellID) {
+        if (cellID >= U_.size() || cellID >= area_.size() || cellID >= perimeter_.size()) {
+            std::cout << "[debug]   probe cell " << cellID << " is out of range.\n";
+            return;
+        }
+        const Conserved& Uc = U_[cellID];
+        const double rho = std::max(1e-14, Uc[0]);
+        const double u = Uc[1] / rho;
+        const double v = Uc[2] / rho;
+        const double p = cellPressure(Uc);
+        const double rhoE = Uc[3];
+
+        const double dchar = 2.0 * area_[cellID] / std::max(1e-12, perimeter_[cellID]);
+        const double dtCell = (dtLocal != nullptr && cellID < dtLocal->size()) ? (*dtLocal)[cellID] : dtUsed;
+        const double dtOverA = dtCell / std::max(1e-14, area_[cellID]);
+
+        std::cout << "[debug]   probe cell=" << cellID
+                  << " rho=" << rho
+                  << " u=" << u
+                  << " v=" << v
+                  << " p=" << p
+                  << " rhoE=" << rhoE
+                  << " A=" << area_[cellID]
+                  << " P=" << perimeter_[cellID]
+                  << " dchar=" << dchar
+                  << " dt=" << dtCell
+                  << " dt/A=" << dtOverA
+                  << " RE=" << residual_[cellID][3]
+                  << "\n";
+    };
+
+    dumpCellPrimitiveAndScale(11);
+    dumpCellPrimitiveAndScale(12);
+
+    if (std::size_t(57) < edges.size()) {
+        const auto& e57 = edges[57];
+        const bool boundary57 = (e57.ownerElem == e57.neighborElem);
+
+        double re57c11 = 0.0;
+        double re57c12 = 0.0;
+        if (e57.ownerElem == 11) {
+            re57c11 += e57.edgeLength * e57.flux[3];
+        }
+        if (!boundary57 && e57.neighborElem == 11) {
+            re57c11 -= e57.edgeLength * e57.flux[3];
+        }
+        if (e57.ownerElem == 12) {
+            re57c12 += e57.edgeLength * e57.flux[3];
+        }
+        if (!boundary57 && e57.neighborElem == 12) {
+            re57c12 -= e57.edgeLength * e57.flux[3];
+        }
+
+        std::cout << "[debug]   probe edge57"
+                  << " owner=" << e57.ownerElem
+                  << " neigh=" << e57.neighborElem
+                  << " bnd=" << (boundary57 ? 1 : 0)
+                  << " L=" << e57.edgeLength
+                  << " spec=" << e57.spectralRadius
+                  << " F3=" << e57.flux[3]
+                  << " edgeRE(cell11)=" << re57c11
+                  << " edgeRE(cell12)=" << re57c12
+                  << "\n";
+    } else {
+        std::cout << "[debug]   probe edge57 is out of range (edges=" << edges.size() << ").\n";
+    }
+
     std::cout << "[debug] it=" << iteration_
               << " t=" << time_
               << " dt=" << dtUsed
