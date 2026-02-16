@@ -1,5 +1,5 @@
-#include "StateMesh.h"
-#include "TriangularMesh.h"
+#include "mesh/StateMesh.h"
+#include "mesh/TriangularMesh.h"
 
 /* Storage order:
     ** Each column contains the states (mass, momentum, and energy) of the same element.

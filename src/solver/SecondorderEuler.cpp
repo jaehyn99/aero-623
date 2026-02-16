@@ -99,11 +99,11 @@ void SecondOrderEuler::computeGradient(
 
         // Use boundary state based on bgroup (CHANGE BGROUP NUMBERS TO MATCH YOUR MESH)
         State Ub;
-        if (bgroup == 1)
+        if (bgroup == 3)
             Ub = inletState_(UL, gamma_, normal);
-        else if (bgroup == 2)
+        else if (bgroup == 7)
             Ub = outletState_(UL, gamma_, normal);
-        else if (bgroup == 3)
+        else if (bgroup == 1 || bgroup == 5)
             Ub = wallState_(UL, gamma_, normal);
         else
             throw std::runtime_error("Unknown boundary group in computeGradient");
@@ -204,18 +204,18 @@ StateMatrix SecondOrderEuler::computeResidualFromGradient(
         const State& UL = U.col(elem);
 
         // Based on boundary conditions, choose flux (CHANGE BGROUP NUMBERS TO MATCH YOUR MESH)
-        if (bgroup == 1) { // inlet
+        if (bgroup == 3) { // inlet
             // compute the flux at the boundary using the inlet flux function and the interior state at the cell center and the boundary state
             Eigen::Vector4d flux = inletFlux_(UL, gamma_, normal);
             flux *= edge_length;
             R.col(elem) += flux; // add contribution to residual of left cell
         }
-        else if (bgroup == 2) { // outlet
+        else if (bgroup == 7) { // outlet
             Eigen::Vector4d flux = outletFlux_(UL, gamma_, normal);
             flux *= edge_length;
             R.col(elem) += flux; // add contribution to residual of left cell
         }
-        else if (bgroup == 3) { // wall
+        else if (bgroup == 1 || bgroup == 5) { // wall
             Eigen::Vector4d flux = wallFlux_(UL, gamma_, normal);
             flux *= edge_length;
             R.col(elem) += flux; // add contribution to residual of left cell
