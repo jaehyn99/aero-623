@@ -285,11 +285,16 @@ int main()
     mesh.writeGri("projects/Project-1/mesh_refined_2394");
 
     // ------------------ Load Connectivity ------------------
-    Eigen::MatrixXi I2E = loadMatrix("projects/Project-1/mesh_refinedI2E.txt", 4).cast<int>();
-    Eigen::MatrixXi B2E = loadMatrix("projects/Project-1/mesh_refinedB2E.txt", 3).cast<int>();
-    Eigen::MatrixXd In  = loadMatrix("projects/Project-1/mesh_refinedIn.txt", 2);
-    Eigen::MatrixXd Bn  = loadMatrix("projects/Project-1/mesh_refinedBn.txt", 2);
-    Eigen::VectorXd Area = loadVector("projects/Project-1/mesh_refinedArea.txt");
+    Eigen::MatrixXi I2E = loadMatrix("projects/Project-1/mesh_refined_2394I2E.txt", 4).cast<int>();
+    Eigen::MatrixXi B2E = loadMatrix("projects/Project-1/mesh_refined_2394B2E.txt", 3).cast<int>();
+    Eigen::MatrixXd In  = loadMatrix("projects/Project-1/mesh_refined_2394In.txt", 2);
+    Eigen::MatrixXd Bn  = loadMatrix("projects/Project-1/mesh_refined_2394Bn.txt", 2);
+    Eigen::VectorXd Area = loadVector("projects/Project-1/mesh_refined_2394Area.txt");
+
+    std::cout << "I2E rows: " << I2E.rows() << "\n";
+    std::cout << "In rows:  " << In.rows()  << "\n";
+    std::cout << "B2E rows: " << B2E.rows() << "\n";
+    std::cout << "Bn rows:  " << Bn.rows()  << "\n";
 
     // ------------------ Solver Setup ------------------
     DummyFlux numFlux;
