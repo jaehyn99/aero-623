@@ -26,15 +26,20 @@ TriangularMesh::Element::Element(TriangularMesh& mesh, std::size_t pointID1, std
     // Look if its faces have already been added to mesh._faces
     for (std::size_t j = 0; j < 3; j++){
         Face iface(mesh, _pointID[(j+1)%3], _pointID[(j+2)%3]);
+        std::cout << "Face " << j << " connecting " << _pointID[(j+1)%3] << " and " << _pointID[(j+2)%3] << std::endl;
 
         // Assign face ID to elem and elem ID to face
         std::size_t faceID = std::find(mesh._faces.cbegin(), mesh._faces.cend(), iface) - mesh._faces.cbegin();
-        if (faceID == mesh.numFaces()) mesh._faces.push_back(iface);
+        if (faceID == mesh.numFaces()){
+            std::cout << "\tThis face has not been added. Adding now." << std::endl;
+            mesh._faces.push_back(iface);
+        }
         _faceID[j] = faceID;
+        std::cout << "\tThis face ID is " << faceID << std::endl;
 
         Face& face = mesh.face(faceID);
-        if (face._elemID[0] == -1) face._elemID[0] = mesh.numElems()-1; // No ElemID has been updated
-        else face._elemID[1] = mesh.numElems()-1;
+        if (face._elemID[0] == -1) face._elemID[0] = mesh.numElems(); // No ElemID has been updated
+        else face._elemID[1] = mesh.numElems();
     }
 
     // Calculates area
@@ -102,78 +107,79 @@ TriangularMesh::TriangularMesh(const std::string& fileName){
         }
     }
 
-    // Periodic boundaries, manually, only works on this one mesh
-    std::deque<std::reference_wrapper<Face>> curve2Faces, curve4Faces, curve6Faces, curve8Faces;
-    for (Face& face: _faces){
-        if (face._title == "Curve2") curve2Faces.push_back(std::ref(face));
-        else if (face._title == "Curve4") curve4Faces.push_front(std::ref(face));
-        else if (face._title == "Curve6") curve6Faces.push_back(std::ref(face));
-        else if (face._title == "Curve8") curve8Faces.push_front(std::ref(face));
+    splitNextLine();
+    if (v.size() > 0){
+        // Works for a GRI file that has periodic boundary info
+        std::size_t nPG = std::stoi(v[0]);
+        for (std::size_t i = 0; i < nPG; i++){
+            splitNextLine();
+            std::size_t nPGNode = std::stoi(v[0]);
+            if (nPGNode >= 2){
+                splitNextLine();
+                std::size_t ind1 = std::stoi(v[0])-1;
+                std::size_t ind2 = std::stoi(v[1])-1;
+                Face left(*this, ind1, ind2);
+
+                for (std::size_t j = 1; j < nPGNode; j++){
+                    splitNextLine();
+                    ind1 = std::stoi(v[0])-1;
+                    ind2 = std::stoi(v[1])-1;
+                    Face right(*this, ind1, ind2);
+
+                    // Locate the periodic faces
+                    auto it1 = std::find(_faces.begin(), _faces.end(), left);
+                    auto it2 = std::find(_faces.begin(), _faces.end(), right);
+                    it1->_periodicFaceID = it2 - _faces.cbegin();
+                    it1->_periodicElemID = it2->_elemID[0];
+
+                    it2->_periodicFaceID = it1 - _faces.cbegin();
+                    it2->_periodicElemID = it1->_elemID[0];
+
+                    left = right;
+                }
+            }
+        }
+    } else{
+        // Periodic boundaries, manually, only works on this one mesh
+        std::deque<std::reference_wrapper<Face>> curve2Faces, curve4Faces, curve6Faces, curve8Faces;
+        for (Face& face: _faces){
+            if (face._title == "Curve2") curve2Faces.push_back(std::ref(face));
+            else if (face._title == "Curve4") curve4Faces.push_front(std::ref(face));
+            else if (face._title == "Curve6") curve6Faces.push_back(std::ref(face));
+            else if (face._title == "Curve8") curve8Faces.push_front(std::ref(face));
+        }
+
+        // Matching curve2 and curve4
+        for (std::size_t i = 0; i < curve2Faces.size(); i++){
+            Face& curve2Face = curve2Faces[i].get();
+            Face& curve4Face = curve4Faces[i].get();
+            std::size_t curve2ID = std::find(_faces.cbegin(), _faces.cend(), curve2Face) - _faces.cbegin();
+            std::size_t curve4ID = std::find(_faces.cbegin(), _faces.cend(), curve4Face) - _faces.cbegin();
+
+            curve2Face._periodicFaceID = curve4ID;
+            curve4Face._periodicFaceID = curve2ID;
+            curve2Face._periodicElemID = curve4Face._elemID[0];
+            curve4Face._periodicElemID = curve2Face._elemID[0];
+        }
+
+        // Matching curve6 and curve8
+        for (std::size_t i = 0; i < curve6Faces.size(); i++){
+            Face& curve6Face = curve6Faces[i].get();
+            Face& curve8Face = curve8Faces[i].get();
+            std::size_t curve6ID = std::find(_faces.cbegin(), _faces.cend(), curve6Face) - _faces.cbegin();
+            std::size_t curve8ID = std::find(_faces.cbegin(), _faces.cend(), curve8Face) - _faces.cbegin();
+
+            curve6Face._periodicFaceID = curve8ID;
+            curve8Face._periodicFaceID = curve6ID;
+            curve6Face._periodicElemID = curve8Face._elemID[0];
+            curve8Face._periodicElemID = curve6Face._elemID[0];
+        }
     }
-
-    // Matching curve2 and curve4
-    for (std::size_t i = 0; i < curve2Faces.size(); i++){
-        Face& curve2Face = curve2Faces[i].get();
-        Face& curve4Face = curve4Faces[i].get();
-        std::size_t curve2ID = std::find(_faces.cbegin(), _faces.cend(), curve2Face) - _faces.cbegin();
-        std::size_t curve4ID = std::find(_faces.cbegin(), _faces.cend(), curve4Face) - _faces.cbegin();
-
-        curve2Face._periodicFaceID = curve4ID;
-        curve4Face._periodicFaceID = curve2ID;
-        curve2Face._periodicElemID = curve4Face._elemID[0];
-        curve4Face._periodicElemID = curve2Face._elemID[0];
-    }
-
-    // Matching curve6 and curve8
-    for (std::size_t i = 0; i < curve6Faces.size(); i++){
-        Face& curve6Face = curve6Faces[i].get();
-        Face& curve8Face = curve8Faces[i].get();
-        std::size_t curve6ID = std::find(_faces.cbegin(), _faces.cend(), curve6Face) - _faces.cbegin();
-        std::size_t curve8ID = std::find(_faces.cbegin(), _faces.cend(), curve8Face) - _faces.cbegin();
-
-        curve6Face._periodicFaceID = curve8ID;
-        curve8Face._periodicFaceID = curve6ID;
-        curve6Face._periodicElemID = curve8Face._elemID[0];
-        curve8Face._periodicElemID = curve6Face._elemID[0];
-    }
-
-    // splitNextLine();
-    // if (v.size() > 0){
-    //     std::size_t nPG = std::stoi(v[0]);
-    //     for (std::size_t i = 0; i < nPG; i++){
-    //         splitNextLine();
-    //         std::size_t nPGNode = std::stoi(v[0]);
-    //         if (nPGNode >= 2){
-    //             splitNextLine();
-    //             std::size_t ind1 = std::stoi(v[0])-1;
-    //             std::size_t ind2 = std::stoi(v[1])-1;
-    //             Face left(*this, ind1, ind2);
-
-    //             for (std::size_t j = 1; j < nPGNode; j++){
-    //                 splitNextLine();
-    //                 ind1 = std::stoi(v[0])-1;
-    //                 ind2 = std::stoi(v[1])-1;
-    //                 Face right(*this, ind1, ind2);
-
-    //                 // Locate the periodic faces
-    //                 auto it1 = std::find(_faces.begin(), _faces.end(), left);
-    //                 auto it2 = std::find(_faces.begin(), _faces.end(), right);
-    //                 it1->_periodicFaceID = it2 - _faces.cbegin();
-    //                 it1->_periodicElemID = it2->_elemID[0];
-
-    //                 it2->_periodicFaceID = it1 - _faces.cbegin();
-    //                 it2->_periodicElemID = it1->_elemID[0];
-
-    //                 left = right;
-    //             }
-    //         }
-    //     }
-    // }
 
     // Update normal vectors on each edge, always pointing from L to R
     for (Face& face: _faces){
         // Consturct a unit normal vector
-        Eigen::Vector2d edge = _nodes[face._pointID[1]] - _nodes[face._pointID[0]];
+        Eigen::Vector2d edge = node(face._pointID[1]) - node(face._pointID[0]);
         face._normal = Eigen::Vector2d{-edge[1], edge[0]};
         face._normal.normalize();
 
@@ -188,8 +194,8 @@ TriangularMesh::TriangularMesh(const std::string& fileName){
                 break;
             }
         }
-        const Eigen::Vector2d& p1 = _nodes[elem._pointID[localFaceID]]; // Point not on this edge
-        const Eigen::Vector2d& p2 = _nodes[elem._pointID[(localFaceID+1)%3]]; // One of the points on this edge
+        const Eigen::Vector2d& p1 = node(elem._pointID[localFaceID]); // Point not on this edge
+        const Eigen::Vector2d& p2 = node(elem._pointID[(localFaceID+1)%3]); // One of the points on this edge
         if ((p2-p1).dot(face._normal) > 0) face._normal *= -1;
 
         // Check for periodic faces
@@ -231,41 +237,6 @@ void TriangularMesh::writeGri(const std::string& fileName) const noexcept{
         }
     }
 
-    // I2E
-    of.open(fileBase + "I2E.txt");
-    for (std::size_t i = 0; i < _faces.size(); i++){
-        const Face& face = _faces[i];
-        if (face.isBoundaryFace() && face._periodicFaceID == -1) continue;
-
-        if (!face.isBoundaryFace()){ // interior face
-            // Elem numbers
-            std::size_t elemLID = face._elemID[0];
-            std::size_t elemRID = face._elemID[1];
-
-            // Local face numbers
-            const Element& elemL = _elems[elemLID];
-            std::size_t faceL = std::find(elemL._faceID.cbegin(), elemL._faceID.cend(), i) - elemL._faceID.cbegin();
-            const Element& elemR = _elems[elemRID];
-            std::size_t faceR = std::find(elemR._faceID.cbegin(), elemR._faceID.cend(), i) - elemR._faceID.cbegin();
-
-            of << elemLID+1 << " " << faceL+1 << " " << elemRID+1 << " " << faceR+1 << "\n";
-        } else{
-            // Elem numbers
-            std::size_t elemID = face._elemID[0];
-            std::size_t pElemID = face._periodicElemID;
-
-            // Local face numbers
-            const Element& elem = _elems[elemID];
-            std::size_t faceL = std::find(elem._faceID.cbegin(), elem._faceID.cend(), i) - elem._faceID.cbegin();
-            const Element& pElem = _elems[pElemID]; // does not contain this face but its periodic counterpart
-            std::size_t faceR = std::find(pElem._faceID.cbegin(), pElem._faceID.cend(), face._periodicFaceID) - pElem._faceID.cbegin();
-
-            if (elemID < pElemID) of << elemID+1 << " " << faceL+1 << " " << pElemID+1 << " " << faceR+1 << "\n";
-            else of << pElemID+1 << " " << faceR+1 << " " << elemID+1 << " " << faceL+1 << "\n";
-        }
-    }
-    of.close();
-
     // Periodic edges
     of.open(fileBase + "periodicEdges.txt");
     std::vector<int> periodicEdgeID;
@@ -290,6 +261,44 @@ void TriangularMesh::writeGri(const std::string& fileName) const noexcept{
         if (periodicEdgeID[i] == 0) continue;
         const Face& face = _faces[i];
         of << periodicEdgeID[face._periodicFaceID] << "\n";
+    }
+    of.close();
+
+    // I2E
+    of.open(fileBase + "I2E.txt");
+    for (std::size_t i = 0; i < _faces.size(); i++){
+        const Face& face = _faces[i];
+        if (face.isBoundaryFace() && face._periodicFaceID == -1) continue;
+
+        if (!face.isBoundaryFace()){ // interior face
+            // Elem numbers
+            std::size_t elemLID = face._elemID[0];
+            std::size_t elemRID = face._elemID[1];
+            std::cout << "Face " << i << " is an interior face bordering elements " << elemLID << " and " << elemRID << std::endl;
+
+            // Local face numbers
+            const Element& elemL = _elems[elemLID];
+            std::size_t faceL = std::find(elemL._faceID.cbegin(), elemL._faceID.cend(), i) - elemL._faceID.cbegin();
+            std::cout << "ElemL has faces " << elemL._faceID[0] << ", " << elemL._faceID[1] << " and " << elemL._faceID[2] << ". Face " << i << " is its face " << faceL << std::endl;
+            const Element& elemR = _elems[elemRID];
+            std::size_t faceR = std::find(elemR._faceID.cbegin(), elemR._faceID.cend(), i) - elemR._faceID.cbegin();
+            std::cout << "ElemR has faces " << elemR._faceID[0] << ", " << elemR._faceID[1] << " and " << elemR._faceID[2] << ". Face " << i << " is its face " << faceR << std::endl;
+
+            of << elemLID+1 << " " << faceL+1 << " " << elemRID+1 << " " << faceR+1 << "\n";
+        } else{
+            // Elem numbers
+            std::size_t elemID = face._elemID[0];
+            std::size_t pElemID = face._periodicElemID;
+
+            // Local face numbers
+            const Element& elem = _elems[elemID];
+            std::size_t faceL = std::find(elem._faceID.cbegin(), elem._faceID.cend(), i) - elem._faceID.cbegin();
+            const Element& pElem = _elems[pElemID]; // does not contain this face but its periodic counterpart
+            std::size_t faceR = std::find(pElem._faceID.cbegin(), pElem._faceID.cend(), face._periodicFaceID) - pElem._faceID.cbegin();
+
+            if (elemID < pElemID) of << elemID+1 << " " << faceL+1 << " " << pElemID+1 << " " << faceR+1 << "\n";
+            else of << pElemID+1 << " " << faceR+1 << " " << elemID+1 << " " << faceL+1 << "\n";
+        }
     }
     of.close();
 
