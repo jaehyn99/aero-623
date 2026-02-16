@@ -1,7 +1,5 @@
 #include "FirstorderEuler.h"
 #include "mesh/TriangularMesh.h"
-
-// Project assumption: Eigen is available, so Roe/HLLE flux headers are used directly.
 #include "solver/boundaryFlux.hpp"
 #include "solver/hlleFluxFO.hpp"
 #include "solver/inletFlux.hpp"
@@ -26,6 +24,21 @@
 
 namespace {
 
+using Vec2 = FirstorderEuler::Vec2;
+
+inline double dot2(const Vec2& a, const Vec2& b) { return a[0]*b[0] + a[1]*b[1]; }
+inline Vec2 neg2(const Vec2& a) { return Vec2{-a[0], -a[1]}; }
+}
+
+Vec2 FirstorderEuler::cellCentroid(std::size_t ei) const {
+    const auto& e = elements_.at(ei);
+    const auto& a = nodes_.at(e[0]);
+    const auto& b = nodes_.at(e[1]);
+    const auto& c = nodes_.at(e[2]);
+    return Vec2{ (a[0]+b[0]+c[0])/3.0, (a[1]+b[1]+c[1])/3.0 };
+}
+
+namespace {
 
 std::string toLower(std::string s) {
     for (char& c : s) {
@@ -33,8 +46,6 @@ std::string toLower(std::string s) {
     }
     return s;
 }
-
-
 
 EulerBoundaryConditions makeBoundaryConditions(const FirstorderEuler::SolverConfig& config) {
     EulerBoundaryConditions::Config bc;
@@ -212,12 +223,7 @@ void FirstorderEuler::buildFacesFromTriangularMesh() {
     }
 
     std::vector<int> periodicPartnerFace(static_cast<std::size_t>(triMesh_->numFaces()), -1);
-    for (std::size_t fid = 0; fid < static_cast<std::size_t>(triMesh_->numFaces()); ++fid) {
-        periodicPartnerFace[fid] = triMesh_->face(fid)._periodicFaceID;
-    }
 
-    // Fallback periodic pairing by curve titles for meshes where TriangularMesh periodic
-    // links are not populated: pair Curve2<->Curve4 and Curve6<->Curve8 by sorted center-x.
     std::unordered_map<std::string, std::vector<std::size_t>> boundaryFacesByTitle;
     for (std::size_t fid = 0; fid < static_cast<std::size_t>(triMesh_->numFaces()); ++fid) {
         const auto& face = triMesh_->face(fid);
@@ -279,11 +285,21 @@ void FirstorderEuler::buildFacesFromTriangularMesh() {
         return static_cast<std::size_t>(it - faceIDs.begin());
     };
 
+
+
     for (std::size_t faceID = 0; faceID < static_cast<std::size_t>(triMesh_->numFaces()); ++faceID) {
         const auto& face = triMesh_->face(faceID);
-        const bool periodic = periodicPartnerFace[faceID] != -1;
         const auto& owners = faceOwners[faceID];
-        const bool boundary = (owners[1] < 0 || face.isBoundaryFace()) && !periodic;
+
+        const bool periodic = (periodicPartnerFace[faceID] != -1);
+        // IMPORTANT: don't process both faces of the periodic pair
+        if (periodic) {
+            const int partner = periodicPartnerFace[faceID];
+            if (partner < 0) throw std::runtime_error("Periodic face has no partner.");
+            if (static_cast<int>(faceID) > partner) continue; // skip duplicate half
+        }
+
+        const bool boundary = face.isBoundaryFace() && !periodic;
 
         if (owners[0] < 0) {
             throw std::runtime_error("Face has invalid left element index.");
@@ -318,17 +334,13 @@ void FirstorderEuler::buildFacesFromTriangularMesh() {
                 throw std::runtime_error("Periodic face partner has invalid owner element.");
             }
             elemR = static_cast<std::size_t>(faceOwners[periodicFaceID][0]);
-            localFaceR = findLocalFace(elemR, static_cast<int>(periodicFaceID), faceID, "right-periodic");
+            localFaceR = findLocalFace(elemR, static_cast<int>(periodicFaceID), periodicFaceID, "right-periodic");
         } else {
             if (owners[1] < 0) {
                 throw std::runtime_error("Interior face has invalid right element index.");
             }
             elemR = static_cast<std::size_t>(owners[1]);
             localFaceR = findLocalFace(elemR, static_cast<int>(faceID), faceID, "right-interior");
-        }
-
-        if (elemR < elemL) {
-            continue;
         }
 
         InteriorFace inf;
@@ -345,6 +357,13 @@ void FirstorderEuler::buildFacesFromTriangularMesh() {
 
         if (periodic) {
             periodicEdges_.push_back({elemL, elemR});
+        }
+
+        //Debug
+        if (config_.enableDebugPrints) {
+            std::cout << "[debug] built faces: interior=" << interiorFaces_.size()
+              << " boundary=" << boundaryFaces_.size()
+              << " periodicPairs=" << periodicEdges_.size() << "\n";
         }
     }
 }
@@ -391,11 +410,6 @@ void FirstorderEuler::validateLoadedArrays() const {
 }
 
 void FirstorderEuler::initUniformState() {
-    // Physical meaning:
-    // Start from inlet stagnation conditions (rho0, a0) plus a guessed Mach number.
-    // Convert them to one thermodynamically consistent static state (rho, u, v, p),
-    // then initialize every cell with the same conservative vector.
-    // This gives a stable and simple first iterate before edge flux updates begin.
     const double M = config_.initialMach;
     const double g = config_.gamma;
     const double R = config_.gasConstant;
@@ -550,8 +564,7 @@ void FirstorderEuler::advance(bool stopByTime) {
                                      "Wrote debug VTK: " + dumpName + "\n"
                                      "Try smaller CFL or verify BC/mesh consistency.");
         }
-        const std::size_t statusEvery = std::max<std::size_t>(1, config_.statusEvery);
-        if (iteration_ % statusEvery == 0 || (stopByTime && time_ >= config_.finalTime)) {
+        if (iteration_ % 10 == 0 || (stopByTime && time_ >= config_.finalTime)) {
             std::cout << iteration_ << " " << time_ << " " << dtUsed << " " << normR << "\n";
         }
 
@@ -586,50 +599,68 @@ std::vector<FirstorderEuler::EdgeFluxContribution> FirstorderEuler::computeEdgeF
         const Conserved& UL = U_.at(f.elemL);
         const Conserved& UR = U_.at(f.elemR);
 
-        const Vec2 nUnit = normalized(f.normal);
+        // --- (1) enforce n points from elemL -> elemR ---
+        Vec2 nFace = f.normal;
+        const Vec2 cL = cellCentroid(f.elemL);
+        const Vec2 cR = cellCentroid(f.elemR);
+        const Vec2 dLR{ cR[0] - cL[0], cR[1] - cL[1] };
+        if (dot2(nFace, dLR) < 0.0) {
+            nFace = neg2(nFace);
+        }
+
+        const Vec2 nUnit = normalized(nFace);
         const Eigen::Vector2d n(nUnit[0], nUnit[1]);
+
         const Conserved F = fromEigen((*flux)(toEigen(UL), toEigen(UR), config_.gamma, n));
 
         EdgeFluxContribution edge;
         edge.ownerElem = f.elemL;
         edge.neighborElem = f.elemR;
-        edge.normal = f.normal;
+        edge.normal = nFace;          // store the *oriented* normal
         edge.edgeLength = f.length;
         edge.flux = F;
         edge.spectralRadius = std::max(spectralRadius(UL, nUnit, config_.gamma),
-                                       spectralRadius(UR, nUnit, config_.gamma));
+                                    spectralRadius(UR, nUnit, config_.gamma));
         edges.push_back(edge);
     }
 
-    // Boundary condition imposition happens here via boundary flux modules.
+
+
     for (const auto& f : boundaryFaces_) {
         const Conserved& UL = U_.at(f.elem);
         EulerBoundaryConditions::Type kind = bcModel.typeFromCurveTitle(f.boundaryTitle);
 
-        // For unsteady inflow support, switch inflow types by runtime mode convention.
-        if (kind == EulerBoundaryConditions::Type::InflowSteady
-            && !config_.localTimeStepping
-            && config_.finalTime < 1e11) {
-            kind = EulerBoundaryConditions::Type::InflowUnsteady;
-        }
+        Vec2 nFace = f.normal;
+        const Vec2 c = cellCentroid(f.elem);
+        const Vec2 toFace{ f.center[0] - c[0], f.center[1] - c[1] };
+        if (dot2(nFace, toFace) < 0.0) nFace = neg2(nFace);
 
+        BoundaryFace fFixed = f;
+        fFixed.normal = nFace;
+
+        const Vec2 nUnit = normalized(nFace);
+        const Eigen::Vector2d n(nUnit[0], nUnit[1]);
+
+        // --- REPLACE boundaryFlux with ghost-state + SAME numerical flux ---
         EulerBoundaryConditions::Context ctx;
         ctx.time = time_;
-        ctx.faceCenter = f.center;
-        const Conserved UR = bcModel.boundaryState(kind, UL, f.normal, ctx);
+        ctx.faceCenter = fFixed.center;
 
-        const Vec2 nUnit = normalized(f.normal);
-        const Eigen::Vector2d n(nUnit[0], nUnit[1]);
+        // IMPORTANT: pass UNIT normal into boundaryState (BC logic should use unit normal)
+        const Conserved UR = bcModel.boundaryState(kind, UL, nUnit, ctx);
+
         const Conserved F = fromEigen((*flux)(toEigen(UL), toEigen(UR), config_.gamma, n));
 
         EdgeFluxContribution edge;
         edge.ownerElem = f.elem;
         edge.neighborElem = f.elem;
-        edge.normal = f.normal;
+        edge.normal = nFace;
         edge.edgeLength = f.length;
         edge.flux = F;
-        edge.spectralRadius = std::max(spectralRadius(UL, nUnit, config_.gamma),
-                                       spectralRadius(UR, nUnit, config_.gamma));
+        edge.spectralRadius = std::max(
+            spectralRadius(UL, nUnit, config_.gamma),
+            spectralRadius(UR, nUnit, config_.gamma)
+        );
         edges.push_back(edge);
     }
 

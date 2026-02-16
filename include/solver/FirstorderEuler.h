@@ -23,24 +23,24 @@ public:
         double alpha = 0.0;
         double pout = 1.0;
 
-        double cfl = 0.8;
+        double cfl = 0.2;
         double finalTime = 2.0;
         std::size_t maxIterations = 20000;
         bool localTimeStepping = true;
 
-        double residualTolerance = 1e-8;
+        double residualTolerance = 1e-5;
         std::size_t saveEvery = 0;
         std::string outputPrefix = "sol";
-        std::string fluxScheme = "roe"; // "roe" or "hlle"
+        std::string fluxScheme = "hlle"; // "roe" or "hlle"
 
         double initialMach = 0.1;
 
         // Boundary-curve role mapping (periodic remains 2<->4 and 6<->8).
-        int inflowCurve = 3;
-        int outflowCurve = 7;
+        int inflowCurve = 7;
+        int outflowCurve = 3;
 
         // Optional debug guard: validate mesh/connectivity arrays after load.
-        bool validateMeshOnLoad = false;
+        bool validateMeshOnLoad = true;
 
         // Lightweight runtime diagnostics (printed every debugEvery iterations).
         bool enableDebugPrints = true;
@@ -56,6 +56,8 @@ public:
 
     using Conserved = std::array<double, 4>; // [rho, rhou, rhov, rhoE]
     using Vec2 = std::array<double, 2>;
+    Vec2 cellCentroid(std::size_t ei) const;
+
 
     struct InteriorFace {
         std::size_t elemL = 0;
@@ -94,6 +96,7 @@ public:
     // and the initial Mach guess, then copy it to every cell.
     void initUniformState();
 
+    
     // Later parts (kept but currently skeletons).
     void advanceToConvergedOrFinalTime();
 
