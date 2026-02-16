@@ -8,6 +8,16 @@ are built on the Eigen library, which consists matrix/vector classes and linear 
 curve 1 is upperblade
 curve 5 is lowerblade
 
+# In/Out
+curve 3: In
+curve 7: Out
+
+# Periodic
+curve 2: left bottom
+curve 4: left top
+curve 8: right bottom
+curve 6: right top
+
 # Build: in "/aero-623"
 make clean
 make -j

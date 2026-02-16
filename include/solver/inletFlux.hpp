@@ -24,18 +24,35 @@ public:
 	double uP = UP(1)/rhoP;
 	double vP = UP(2)/rhoP;
 	double rhoEP = UP(3);
+
+	constexpr double pFloor = 1e-10;
 	double pP = gm1*(rhoEP - 0.5*rhoP*(uP*uP + vP*vP));
+	pP = std::max(pFloor, pP);
 	double cP = std::sqrt(gamma*pP/rhoP);
+
 	double uNP = uP*n(0) + vP*n(1);
 	double pT = rho0_*a0_*a0_/gamma;
 	double RTT = pT/rho0_;
 	double JP = uNP + 2*cP/gm1;
 	double dn = n(0)*std::cos(alpha_) + n(1)*std::sin(alpha_);
+	
+	// Safe Guard
 	double A = gamma*RTT*dn*dn - 0.5*gm1*JP*JP;
+	if (std::abs(A) < 1e-14) {
+		// fallback: pick a small Mach or use interior Mach estimate
+		// simplest:
+		A = (A >= 0 ? 1e-14 : -1e-14);
+	}
+
 	double B = 4*gamma*RTT*dn/gm1;
 	double C = 4*gamma*RTT/(gm1*gm1) - JP*JP;
-	double MB1 = (-B + std::sqrt(B*B - 4*A*C))/(2*A);
-	double MB2 = (-B - std::sqrt(B*B - 4*A*C))/(2*A);
+
+	// Safe Guard
+	double disc = B*B - 4*A*C;
+	disc = std::max(0.0, disc);
+	double MB1 = (-B + std::sqrt(disc)) / (2*A);
+	double MB2 = (-B - std::sqrt(disc)) / (2*A);
+
 	double MB;
 	if (MB1*MB2 < 0) {
 		MB = std::max(MB1, MB2);

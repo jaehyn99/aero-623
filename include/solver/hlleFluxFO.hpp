@@ -28,6 +28,12 @@ public:
         double pL = gm1*(UL(3) - 0.5*rhoL*(uL*uL + vL*vL));
         double pR = gm1*(UR(3) - 0.5*rhoR*(uR*uR + vR*vR));
 
+        // Safe Guard
+        constexpr double pFloor = 1e-10;
+        pL = std::max(pFloor, pL);
+        pR = std::max(pFloor, pR);
+
+
 	Eigen::Matrix<double, 4, 1> FL; Eigen::Matrix<double, 4, 1> FR; 
 	Eigen::Matrix<double, 4, 1> F;
 
@@ -50,26 +56,16 @@ public:
         double EL = UL(3)/rhoL;
         double ER = UR(3)/rhoR;
 
-        double aL2 = gm1*((EL + pL)/rhoL - 0.5*(uL*uL + vL*vL));
-        double aR2 = gm1*((ER + pR)/rhoR - 0.5*(uR*uR + vR*vR));
+        double aL = std::sqrt(gamma * pL / rhoL);
+        double aR = std::sqrt(gamma * pR / rhoR);
 
-        double dAvg = std::sqrt(
-            (std::sqrt(rhoL)*aL2 + std::sqrt(rhoR)*aR2)
-            / (std::sqrt(rhoL) + std::sqrt(rhoR))
-            + eta2*(vR - vL)*(vR - vL)
-        );
-
-        double SL = vAvg - dAvg;
-        double SR = vAvg + dAvg;
+        double SL = std::min(uNL - aL, uNR - aR);
+        double SR = std::max(uNL + aL, uNR + aR);
 
         if (SL >= 0.0) return FL;
         if (SR <= 0.0) return FR;
-
-	F(0) = (SR*FL(0) - SL*FR(0) + SL*SR*(UR(0) - UL(0)))/(SR - SL);
-	F(1) = (SR*FL(1) - SL*FR(1) + SL*SR*(UR(1) - UL(1)))/(SR - SL);
-	F(2) = (SR*FL(2) - SL*FR(2) + SL*SR*(UR(2) - UL(2)))/(SR - SL);
-	F(3) = (SR*FL(3) - SL*FR(3) + SL*SR*(UR(3) - UL(3)))/(SR - SL);
-
+        
+        F = (SR*FL - SL*FR + SL*SR*(UR - UL)) / (SR - SL);
         return F;
     }
 };

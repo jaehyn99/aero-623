@@ -16,14 +16,27 @@ public:
         const Eigen::Vector2d& n
     ) const override {
 	double gm1 = gamma - 1;
-        double rhoP = UP(0); 
+	
+	// Safe Guard
+	constexpr double rhoFloor = 1e-10;
+	double rhoP = std::max(rhoFloor, UP(0));
+
 	double uP = UP(1)/rhoP;
 	double vP = UP(2)/rhoP;
 	double rhoEP = UP(3);
+
+	// Safe Guard
+	constexpr double pFloor = 1e-10;
 	double pP = gm1*(rhoEP - 0.5*rhoP*(uP*uP + vP*vP));
-	double SP = p0_/std::pow(rhoP, gamma);
+	pP = std::max(pFloor, pP);
+	
+	double SP = pP / std::pow(rhoP, gamma);    // entropy from interior
+
 	double rhoB = std::pow(p0_/SP, 1/gamma);
+	rhoB = std::max(rhoFloor, rhoB);
 	double cB = std::sqrt(gamma*p0_/rhoB);
+
+
 	double uNP = uP*n(0) + vP*n(1);
 	double cP = std::sqrt(gamma*pP/rhoP);
 	double JP = uNP + 2*cP/gm1;

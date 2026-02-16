@@ -1,6 +1,5 @@
 #include "FirstorderEuler.h"
 #include "mesh/TriangularMesh.h"
-#include "solver/BoundaryConditions.h"
 #include "solver/boundaryFlux.hpp"
 #include "solver/hlleFluxFO.hpp"
 #include "solver/inletFlux.hpp"
@@ -86,39 +85,6 @@ BoundaryKind boundaryKindFromTitle(const std::string& title,
     return BoundaryKind::InflowSteady;
 }
 
-EulerBoundaryConditions makeBoundaryConditions(const FirstorderEuler::SolverConfig& config) {
-    EulerBoundaryConditions::Config bc;
-    bc.gamma = config.gamma;
-    bc.gasConstant = config.gasConstant;
-    bc.alpha = config.alpha;
-    bc.pout = config.pout;
-    bc.rho0 = config.rho0;
-    bc.inflowCurve = config.inflowCurve;
-    bc.outflowCurve = config.outflowCurve;
-
-    bc.Tt = (config.a0 * config.a0) / (config.gamma * config.gasConstant);
-    bc.pt = config.rho0 * config.gasConstant * bc.Tt;
-    bc.Vrot = config.a0;
-    return EulerBoundaryConditions(bc);
-}
-
-EulerBoundaryConditions::Type toBoundaryType(BoundaryKind kind) {
-    switch (kind) {
-    case BoundaryKind::InflowSteady:
-        return EulerBoundaryConditions::Type::InflowSteady;
-    case BoundaryKind::InflowUnsteady:
-        return EulerBoundaryConditions::Type::InflowUnsteady;
-    case BoundaryKind::OutflowSubsonic:
-        return EulerBoundaryConditions::Type::OutflowSubsonic;
-    case BoundaryKind::WallSlip:
-        return EulerBoundaryConditions::Type::WallSlip;
-    case BoundaryKind::Periodic:
-        return EulerBoundaryConditions::Type::Periodic;
-    }
-    return EulerBoundaryConditions::Type::InflowSteady;
-}
-
-
 FirstorderEuler::Vec2 normalized(const FirstorderEuler::Vec2& n) {
     const double mag = std::sqrt(n[0] * n[0] + n[1] * n[1]);
     if (mag <= 1e-14) {
@@ -178,28 +144,38 @@ bool hasReasonablePressureAndInternalEnergy(const FirstorderEuler::Conserved& Un
 
 void enforcePhysicalState(FirstorderEuler::Conserved& U, double gamma) {
     constexpr double rhoFloor = 1e-10;
-    constexpr double pFloor = 1e-10;
+    constexpr double pFloor   = 1e-10;
 
-    double rho = std::isfinite(U[0]) ? U[0] : rhoFloor;
+    const double gm1 = gamma - 1.0;
+
+    double rho  = std::isfinite(U[0]) ? U[0] : rhoFloor;
     rho = std::max(rhoFloor, rho);
 
     double rhou = std::isfinite(U[1]) ? U[1] : 0.0;
     double rhov = std::isfinite(U[2]) ? U[2] : 0.0;
-    double rhoE = std::isfinite(U[3]) ? U[3] : pFloor / (gamma - 1.0);
+    double rhoE = std::isfinite(U[3]) ? U[3] : (pFloor / gm1);
 
     const double u = rhou / rho;
     const double v = rhov / rho;
-    const double kinetic = 0.5 * rho * (u * u + v * v);
-    const double p = (gamma - 1.0) * (rhoE - kinetic);
-    if (!std::isfinite(p) || p < pFloor) {
-        rhoE = pFloor / (gamma - 1.0) + kinetic;
+
+    const double kinetic = 0.5 * rho * (u*u + v*v);
+
+    // Minimum total energy consistent with pFloor:
+    const double rhoEmin = kinetic + pFloor / gm1;
+
+    if (!std::isfinite(rhoE) || rhoE < rhoEmin) {
+        rhoE = rhoEmin;
     }
+
+    // (Optional) If you want to zero momentum when rho is tiny:
+    if (rho == rhoFloor) { rhou = 0.0; rhov = 0.0; }
 
     U[0] = rho;
     U[1] = rhou;
     U[2] = rhov;
     U[3] = rhoE;
 }
+
 
 std::unique_ptr<numericalFlux> makeFlux(const std::string& schemeName) {
     const std::string name = toLower(schemeName);
@@ -365,15 +341,15 @@ void FirstorderEuler::buildFacesFromTriangularMesh() {
                                    const char* side) -> std::size_t {
         const auto& faceIDs = triMesh_->elem(elemID)._faceID;
         const auto it = std::find(faceIDs.begin(), faceIDs.end(), faceID);
-        if (it == faceIDs.end()) {
-            std::ostringstream oss;
-            oss << "Face-to-element mapping error on " << side
-                << " side: globalFaceID=" << globalFaceID
-                << ", requestedFaceID=" << faceID
-                << ", elemID=" << elemID
-                << ", elemFaceIDs=[" << faceIDs[0] << "," << faceIDs[1] << "," << faceIDs[2] << "]";
-            throw std::runtime_error(oss.str());
-        }
+        // if (it == faceIDs.end()) {
+        //     std::ostringstream oss;
+        //     oss << "Face-to-element mapping error on " << side
+        //         << " side: globalFaceID=" << globalFaceID
+        //         << ", requestedFaceID=" << faceID
+        //         << ", elemID=" << elemID
+        //         << ", elemFaceIDs=[" << faceIDs[0] << "," << faceIDs[1] << "," << faceIDs[2] << "]";
+        //     throw std::runtime_error(oss.str());
+        // }
         return static_cast<std::size_t>(it - faceIDs.begin());
     };
 
@@ -451,12 +427,12 @@ void FirstorderEuler::buildFacesFromTriangularMesh() {
             periodicEdges_.push_back({elemL, elemR});
         }
 
-        //Debug
-        if (config_.enableDebugPrints) {
-            std::cout << "[debug] built faces: interior=" << interiorFaces_.size()
-              << " boundary=" << boundaryFaces_.size()
-              << " periodicPairs=" << periodicEdges_.size() << "\n";
-        }
+        // //Debug
+        // if (config_.enableDebugPrints) {
+        //     std::cout << "[debug] built faces: interior=" << interiorFaces_.size()
+        //       << " boundary=" << boundaryFaces_.size()
+        //       << " periodicPairs=" << periodicEdges_.size() << "\n";
+        // }
     }
 }
 
@@ -660,16 +636,17 @@ void FirstorderEuler::advance(bool stopByTime) {
             std::cout << iteration_ << " " << time_ << " " << dtUsed << " " << normR << "\n";
         }
 
-        if (config_.enableDebugPrints && (iteration_ % std::max<std::size_t>(1, config_.debugEvery) == 0)) {
-            printIterationDiagnostics(edges, dtLocalPtr, dtUsed, normR);
-        }
+        // if (config_.enableDebugPrints && (iteration_ % std::max<std::size_t>(1, config_.debugEvery) == 0)) {
+        //     printIterationDiagnostics(edges, dtLocalPtr, dtUsed, normR);
+        // }
 
         ++iteration_;
         if (stopByTime) {
             time_ += dtUsed;
         }
 
-        if (config_.saveEvery > 0 && iteration_ % config_.saveEvery == 0) {
+        // VTK Writer Module.
+        if (config_.saveEvery > 0 && iteration_ % config_.saveEvery == 10) {
             const std::string dumpName = config_.outputPrefix + "_iter" + std::to_string(iteration_) + ".vtk";
             writeSolutionVtk(dumpName);
         }
@@ -720,8 +697,8 @@ std::vector<FirstorderEuler::EdgeFluxContribution> FirstorderEuler::computeEdgeF
     for (const auto& f : boundaryFaces_) {
         const Conserved& UL = U_.at(f.elem);
         const BoundaryKind kind = boundaryKindFromTitle(f.boundaryTitle, config_);
-        const EulerBoundaryConditions bcModel = makeBoundaryConditions(config_);
 
+        // Orient normal to point outward (cell centroid -> face center)
         Vec2 nFace = f.normal;
         const Vec2 c = cellCentroid(f.elem);
         const Vec2 toFace{ f.center[0] - c[0], f.center[1] - c[1] };
@@ -731,37 +708,42 @@ std::vector<FirstorderEuler::EdgeFluxContribution> FirstorderEuler::computeEdgeF
         fFixed.normal = nFace;
 
         const Vec2 nUnit = normalized(nFace);
-        const Eigen::Vector2d n(nUnit[0], nUnit[1]);
 
-        EulerBoundaryConditions::Context ctx;
-        ctx.time = time_;
-        ctx.faceCenter = fFixed.center;
-        const Conserved UR = bcModel.boundaryState(toBoundaryType(kind), UL, nUnit, ctx);
-
-        const Conserved F = fromEigen((*flux)(toEigen(UL), toEigen(UR), config_.gamma, n));
+        // Direct boundary flux (NO ghost state)
+        const Conserved Fb = computeBoundaryFluxFromModules(fFixed, UL, kind);
 
         EdgeFluxContribution edge;
         edge.ownerElem = f.elem;
-        edge.neighborElem = f.elem;
+        edge.neighborElem = f.elem;      // boundary contributes only to owner
         edge.normal = nFace;
         edge.edgeLength = f.length;
-        edge.flux = F;
-        edge.spectralRadius = std::max(
-            spectralRadius(UL, nUnit, config_.gamma),
-            spectralRadius(UR, nUnit, config_.gamma)
-        );
+        edge.flux = Fb;
+
+        // Use local characteristic speed from interior state (safe)
+        edge.spectralRadius = spectralRadius(UL, nUnit, config_.gamma);
 
         edges.push_back(edge);
-    }
 
+        // if (!std::isfinite(F[0]) || !std::isfinite(F[1]) || !std::isfinite(F[2]) || !std::isfinite(F[3])) {
+        //     std::ostringstream oss;
+        //     oss << "Non-finite boundary flux on title=" << f.boundaryTitle
+        //         << " elem=" << f.elem << " kind=" << int(kind);
+        //     throw std::runtime_error(oss.str());
+        // }
+    }
     return edges;
 }
 
 FirstorderEuler::Conserved FirstorderEuler::computeBoundaryFluxFromModules(
     const BoundaryFace& f,
     const Conserved& UL,
-    BoundaryKind kind) const {
-    const Eigen::Vector4d up = toEigen(UL);
+    BoundaryKind kind) const
+{
+    Conserved Uphys = UL;
+    enforcePhysicalState(Uphys, config_.gamma);
+
+    const Eigen::Vector4d up = toEigen(Uphys);
+
     const Vec2 nUnit = normalized(f.normal);
     const Eigen::Vector2d n(nUnit[0], nUnit[1]);
 
@@ -785,6 +767,7 @@ FirstorderEuler::Conserved FirstorderEuler::computeBoundaryFluxFromModules(
 
     return fromEigen((*faceFlux)(up, config_.gamma, n));
 }
+
 
 void FirstorderEuler::assembleResidualFromEdgeFluxes(const std::vector<EdgeFluxContribution>& edges) {
     for (auto& R : residual_) {
@@ -912,7 +895,6 @@ void FirstorderEuler::updateStateGlobalDt(double dt) {
     }
 }
 
-
 void FirstorderEuler::updateStateLocalDt(const std::vector<double>& dtLocal) {
     const int maxCuts = 10;
     constexpr double maxRelativeEnergyChange = 0.25;
@@ -947,7 +929,6 @@ void FirstorderEuler::updateStateLocalDt(const std::vector<double>& dtLocal) {
     }
 }
 
-
 double FirstorderEuler::cellPressure(const Conserved& U) const {
     const double rho = std::max(1e-14, U[0]);
     const double u = U[1] / rho;
@@ -978,220 +959,217 @@ void FirstorderEuler::printBoundaryConditionSummary() const {
         }
     }
 
-    std::cout << "[debug] BC summary: boundaryFaces=" << boundaryFaces_.size()
-              << " inflow=" << nInflow
-              << " outflow=" << nOutflow
-              << " wall=" << nWall
-              << " periodic=" << nPeriodic
-              << " periodicPairs=" << periodicEdges_.size() << "\n";
-    for (const auto& kv : perTitle) {
-        std::cout << "[debug]   title='" << kv.first << "' faces=" << kv.second << "\n";
-    }
+    // std::cout << "[debug] BC summary: boundaryFaces=" << boundaryFaces_.size()
+    //           << " inflow=" << nInflow
+    //           << " outflow=" << nOutflow
+    //           << " wall=" << nWall
+    //           << " periodic=" << nPeriodic
+    //           << " periodicPairs=" << periodicEdges_.size() << "\n";
+    // for (const auto& kv : perTitle) {
+    //     std::cout << "[debug]   title='" << kv.first << "' faces=" << kv.second << "\n";
+    // }
 }
 
-void FirstorderEuler::printIterationDiagnostics(const std::vector<EdgeFluxContribution>& edges,
-                                                const std::vector<double>* dtLocal,
-                                                double dtUsed,
-                                                double normR) const {
-    const auto minmaxRho = std::minmax_element(U_.begin(), U_.end(),
-        [](const Conserved& a, const Conserved& b) { return a[0] < b[0]; });
+// void FirstorderEuler::printIterationDiagnostics(const std::vector<EdgeFluxContribution>& edges,
+//                                                 const std::vector<double>* dtLocal,
+//                                                 double dtUsed,
+//                                                 double normR) const {
+//     const auto minmaxRho = std::minmax_element(U_.begin(), U_.end(),
+//         [](const Conserved& a, const Conserved& b) { return a[0] < b[0]; });
 
-    double pMin = std::numeric_limits<double>::infinity();
-    double pMax = -std::numeric_limits<double>::infinity();
-    std::size_t pMinCell = 0, pMaxCell = 0;
-    for (std::size_t i = 0; i < U_.size(); ++i) {
-        const double p = cellPressure(U_[i]);
-        if (p < pMin) { pMin = p; pMinCell = i; }
-        if (p > pMax) { pMax = p; pMaxCell = i; }
-    }
+//     double pMin = std::numeric_limits<double>::infinity();
+//     double pMax = -std::numeric_limits<double>::infinity();
+//     std::size_t pMinCell = 0, pMaxCell = 0;
+//     for (std::size_t i = 0; i < U_.size(); ++i) {
+//         const double p = cellPressure(U_[i]);
+//         if (p < pMin) { pMin = p; pMinCell = i; }
+//         if (p > pMax) { pMax = p; pMaxCell = i; }
+//     }
 
-    double fluxMax = 0.0;
-    std::size_t fluxMaxEdge = 0;
-    for (std::size_t i = 0; i < edges.size(); ++i) {
-        const double m = std::max({std::abs(edges[i].flux[0]), std::abs(edges[i].flux[1]),
-                                   std::abs(edges[i].flux[2]), std::abs(edges[i].flux[3])});
-        if (m > fluxMax) { fluxMax = m; fluxMaxEdge = i; }
-    }
+//     double fluxMax = 0.0;
+//     std::size_t fluxMaxEdge = 0;
+//     for (std::size_t i = 0; i < edges.size(); ++i) {
+//         const double m = std::max({std::abs(edges[i].flux[0]), std::abs(edges[i].flux[1]),
+//                                    std::abs(edges[i].flux[2]), std::abs(edges[i].flux[3])});
+//         if (m > fluxMax) { fluxMax = m; fluxMaxEdge = i; }
+//     }
 
-    Vec2 pMinCenter{0.0, 0.0};
-    if (pMinCell < elements_.size()) {
-        const auto& e = elements_[pMinCell];
-        const auto& a = nodes_[e[0]];
-        const auto& b = nodes_[e[1]];
-        const auto& c = nodes_[e[2]];
-        pMinCenter = {(a[0] + b[0] + c[0]) / 3.0, (a[1] + b[1] + c[1]) / 3.0};
-    }
+//     Vec2 pMinCenter{0.0, 0.0};
+//     if (pMinCell < elements_.size()) {
+//         const auto& e = elements_[pMinCell];
+//         const auto& a = nodes_[e[0]];
+//         const auto& b = nodes_[e[1]];
+//         const auto& c = nodes_[e[2]];
+//         pMinCenter = {(a[0] + b[0] + c[0]) / 3.0, (a[1] + b[1] + c[1]) / 3.0};
+//     }
 
-    Vec2 fluxMaxCenter{0.0, 0.0};
-    if (fluxMaxEdge < edges.size()) {
-        const auto& ef = edges[fluxMaxEdge];
-        for (const auto& f : interiorFaces_) {
-            if ((f.elemL == ef.ownerElem && f.elemR == ef.neighborElem)
-                || (f.elemL == ef.neighborElem && f.elemR == ef.ownerElem)) {
-                fluxMaxCenter = f.center;
-                break;
-            }
-        }
-    }
+//     Vec2 fluxMaxCenter{0.0, 0.0};
+//     if (fluxMaxEdge < edges.size()) {
+//         const auto& ef = edges[fluxMaxEdge];
+//         for (const auto& f : interiorFaces_) {
+//             if ((f.elemL == ef.ownerElem && f.elemR == ef.neighborElem)
+//                 || (f.elemL == ef.neighborElem && f.elemR == ef.ownerElem)) {
+//                 fluxMaxCenter = f.center;
+//                 break;
+//             }
+//         }
+//     }
 
-    double rMax = 0.0;
-    std::size_t rMaxCell = 0, rMaxComp = 0;
-    for (std::size_t i = 0; i < residual_.size(); ++i) {
-        for (std::size_t k = 0; k < 4; ++k) {
-            const double a = std::abs(residual_[i][k]);
-            if (a > rMax) { rMax = a; rMaxCell = i; rMaxComp = k; }
-        }
-    }
+//     double rMax = 0.0;
+//     std::size_t rMaxCell = 0, rMaxComp = 0;
+//     for (std::size_t i = 0; i < residual_.size(); ++i) {
+//         for (std::size_t k = 0; k < 4; ++k) {
+//             const double a = std::abs(residual_[i][k]);
+//             if (a > rMax) { rMax = a; rMaxCell = i; rMaxComp = k; }
+//         }
+//     }
 
-    auto dumpCellFluxContrib = [&](std::size_t cellID) {
-        std::cout << "[debug]   cell " << cellID << " face flux contributions:\n";
-        for (std::size_t ei = 0; ei < edges.size(); ++ei) {
-            const auto& ed = edges[ei];
-            if (ed.ownerElem == cellID || ed.neighborElem == cellID) {
-                // sign: owner adds +F, neighbor adds -F
-                const double sgn = (ed.ownerElem == cellID) ? +1.0 : -1.0;
-                const bool boundaryEdge = (ed.ownerElem == ed.neighborElem);
+//     // auto dumpCellFluxContrib = [&](std::size_t cellID) {
+//     //     std::cout << "[debug]   cell " << cellID << " face flux contributions:\n";
+//     //     for (std::size_t ei = 0; ei < edges.size(); ++ei) {
+//     //         const auto& ed = edges[ei];
+//     //         if (ed.ownerElem == cellID || ed.neighborElem == cellID) {
+//     //             // sign: owner adds +F, neighbor adds -F
+//     //             const double sgn = (ed.ownerElem == cellID) ? +1.0 : -1.0;
+//     //             const bool boundaryEdge = (ed.ownerElem == ed.neighborElem);
 
-                const Conserved& Uowner = U_.at(ed.ownerElem);
-                const double pOwner = cellPressure(Uowner);
-                double pNeighbor = pOwner;
-                if (!boundaryEdge) {
-                    pNeighbor = cellPressure(U_.at(ed.neighborElem));
-                }
+//     //             const Conserved& Uowner = U_.at(ed.ownerElem);
+//     //             const double pOwner = cellPressure(Uowner);
+//     //             double pNeighbor = pOwner;
+//     //             if (!boundaryEdge) {
+//     //                 pNeighbor = cellPressure(U_.at(ed.neighborElem));
+//     //             }
 
-                std::cout << "    edge#" << ei
-                        << " sgn=" << sgn
-                        << " owner=" << ed.ownerElem
-                        << " neigh=" << ed.neighborElem
-                        << " bnd=" << (boundaryEdge ? 1 : 0)
-                        << " L=" << ed.edgeLength
-                        << " spec=" << ed.spectralRadius
-                        << " pOwner=" << pOwner
-                        << " pNeigh=" << pNeighbor
-                        << " F=[" << ed.flux[0] << "," << ed.flux[1] << "," << ed.flux[2] << "," << ed.flux[3] << "]\n";
-            }
-        }
-    };
-    dumpCellFluxContrib(pMinCell);
-    dumpCellFluxContrib(pMaxCell);
-    dumpCellFluxContrib(rMaxCell);
+//     //             std::cout << "    edge#" << ei
+//     //                     << " sgn=" << sgn
+//     //                     << " owner=" << ed.ownerElem
+//     //                     << " neigh=" << ed.neighborElem
+//     //                     << " bnd=" << (boundaryEdge ? 1 : 0)
+//     //                     << " L=" << ed.edgeLength
+//     //                     << " spec=" << ed.spectralRadius
+//     //                     << " pOwner=" << pOwner
+//     //                     << " pNeigh=" << pNeighbor
+//     //                     << " F=[" << ed.flux[0] << "," << ed.flux[1] << "," << ed.flux[2] << "," << ed.flux[3] << "]\n";
+//     //         }
+//     //     }
+//     };
+//     dumpCellFluxContrib(pMinCell);
+//     dumpCellFluxContrib(pMaxCell);
+//     dumpCellFluxContrib(rMaxCell);
 
-    // Targeted debug probe for TE instability tracking.
-    // Focus pair requested in debugging session: cells 11 and 12, edge 57.
-    const auto dumpCellPrimitiveAndScale = [&](std::size_t cellID) {
-        if (cellID >= U_.size() || cellID >= area_.size() || cellID >= perimeter_.size()) {
-            std::cout << "[debug]   probe cell " << cellID << " is out of range.\n";
-            return;
-        }
-        const Conserved& Uc = U_[cellID];
-        const double rho = std::max(1e-14, Uc[0]);
-        const double u = Uc[1] / rho;
-        const double v = Uc[2] / rho;
-        const double p = cellPressure(Uc);
-        const double rhoE = Uc[3];
+//     // Targeted debug probe for TE instability tracking.
+//     // Focus pair requested in debugging session: cells 11 and 12, edge 57.
+//     const auto dumpCellPrimitiveAndScale = [&](std::size_t cellID) {
+//         if (cellID >= U_.size() || cellID >= area_.size() || cellID >= perimeter_.size()) {
+//             std::cout << "[debug]   probe cell " << cellID << " is out of range.\n";
+//             return;
+//         }
+//         const Conserved& Uc = U_[cellID];
+//         const double rho = std::max(1e-14, Uc[0]);
+//         const double u = Uc[1] / rho;
+//         const double v = Uc[2] / rho;
+//         const double p = cellPressure(Uc);
+//         const double rhoE = Uc[3];
 
-        const double dchar = 2.0 * area_[cellID] / std::max(1e-12, perimeter_[cellID]);
-        const double dtCell = (dtLocal != nullptr && cellID < dtLocal->size()) ? (*dtLocal)[cellID] : dtUsed;
-        const double dtOverA = dtCell / std::max(1e-14, area_[cellID]);
+//         const double dchar = 2.0 * area_[cellID] / std::max(1e-12, perimeter_[cellID]);
+//         const double dtCell = (dtLocal != nullptr && cellID < dtLocal->size()) ? (*dtLocal)[cellID] : dtUsed;
+//         const double dtOverA = dtCell / std::max(1e-14, area_[cellID]);
 
-        std::cout << "[debug]   probe cell=" << cellID
-                  << " rho=" << rho
-                  << " u=" << u
-                  << " v=" << v
-                  << " p=" << p
-                  << " rhoE=" << rhoE
-                  << " A=" << area_[cellID]
-                  << " P=" << perimeter_[cellID]
-                  << " dchar=" << dchar
-                  << " dt=" << dtCell
-                  << " dt/A=" << dtOverA
-                  << " RE=" << residual_[cellID][3]
-                  << "\n";
-    };
+//         std::cout << "[debug]   probe cell=" << cellID
+//                   << " rho=" << rho
+//                   << " u=" << u
+//                   << " v=" << v
+//                   << " p=" << p
+//                   << " rhoE=" << rhoE
+//                   << " A=" << area_[cellID]
+//                   << " P=" << perimeter_[cellID]
+//                   << " dchar=" << dchar
+//                   << " dt=" << dtCell
+//                   << " dt/A=" << dtOverA
+//                   << " RE=" << residual_[cellID][3]
+//                   << "\n";
+//     };
 
-    dumpCellPrimitiveAndScale(11);
-    dumpCellPrimitiveAndScale(12);
+//     dumpCellPrimitiveAndScale(11);
+//     dumpCellPrimitiveAndScale(12);
 
-    if (std::size_t(57) < edges.size()) {
-        const auto& e57 = edges[57];
-        const bool boundary57 = (e57.ownerElem == e57.neighborElem);
+//     if (std::size_t(57) < edges.size()) {
+//         const auto& e57 = edges[57];
+//         const bool boundary57 = (e57.ownerElem == e57.neighborElem);
 
-        double re57c11 = 0.0;
-        double re57c12 = 0.0;
-        if (e57.ownerElem == 11) {
-            re57c11 += e57.edgeLength * e57.flux[3];
-        }
-        if (!boundary57 && e57.neighborElem == 11) {
-            re57c11 -= e57.edgeLength * e57.flux[3];
-        }
-        if (e57.ownerElem == 12) {
-            re57c12 += e57.edgeLength * e57.flux[3];
-        }
-        if (!boundary57 && e57.neighborElem == 12) {
-            re57c12 -= e57.edgeLength * e57.flux[3];
-        }
+//         double re57c11 = 0.0;
+//         double re57c12 = 0.0;
+//         if (e57.ownerElem == 11) {
+//             re57c11 += e57.edgeLength * e57.flux[3];
+//         }
+//         if (!boundary57 && e57.neighborElem == 11) {
+//             re57c11 -= e57.edgeLength * e57.flux[3];
+//         }
+//         if (e57.ownerElem == 12) {
+//             re57c12 += e57.edgeLength * e57.flux[3];
+//         }
+//         if (!boundary57 && e57.neighborElem == 12) {
+//             re57c12 -= e57.edgeLength * e57.flux[3];
+//         }
 
-        std::cout << "[debug]   probe edge57"
-                  << " owner=" << e57.ownerElem
-                  << " neigh=" << e57.neighborElem
-                  << " bnd=" << (boundary57 ? 1 : 0)
-                  << " L=" << e57.edgeLength
-                  << " spec=" << e57.spectralRadius
-                  << " F3=" << e57.flux[3]
-                  << " edgeRE(cell11)=" << re57c11
-                  << " edgeRE(cell12)=" << re57c12
-                  << "\n";
-    } else {
-        std::cout << "[debug]   probe edge57 is out of range (edges=" << edges.size() << ").\n";
-    }
+//         std::cout << "[debug]   probe edge57"
+//                   << " owner=" << e57.ownerElem
+//                   << " neigh=" << e57.neighborElem
+//                   << " bnd=" << (boundary57 ? 1 : 0)
+//                   << " L=" << e57.edgeLength
+//                   << " spec=" << e57.spectralRadius
+//                   << " F3=" << e57.flux[3]
+//                   << " edgeRE(cell11)=" << re57c11
+//                   << " edgeRE(cell12)=" << re57c12
+//                   << "\n";
+//     } else {
+//         std::cout << "[debug]   probe edge57 is out of range (edges=" << edges.size() << ").\n";
+//     }
 
-    std::cout << "[debug] it=" << iteration_
-              << " t=" << time_
-              << " dt=" << dtUsed
-              << " ||R||2=" << normR
-              << " rho[min,max]=(" << (*minmaxRho.first)[0] << "," << (*minmaxRho.second)[0] << ")"
-              << " p[min,max]=(" << pMin << "@" << pMinCell << "," << pMax << "@" << pMaxCell << ")"
-              << " pMin(x,y)=(" << pMinCenter[0] << "," << pMinCenter[1] << ")"
-              << " max|flux|=" << fluxMax << "@edge" << fluxMaxEdge
-              << " fluxMax(x,y)=(" << fluxMaxCenter[0] << "," << fluxMaxCenter[1] << ")"
-              << " max|R|=" << rMax << "@cell" << rMaxCell << ",k" << rMaxComp
-              << " max|F_mass,wall|=" << maxWallBoundaryMassFlux()
-              << " edges=" << edges.size() << "\n";
+//     std::cout << "[debug] it=" << iteration_
+//               << " t=" << time_
+//               << " dt=" << dtUsed
+//               << " ||R||2=" << normR
+//               << " rho[min,max]=(" << (*minmaxRho.first)[0] << "," << (*minmaxRho.second)[0] << ")"
+//               << " p[min,max]=(" << pMin << "@" << pMinCell << "," << pMax << "@" << pMaxCell << ")"
+//               << " pMin(x,y)=(" << pMinCenter[0] << "," << pMinCenter[1] << ")"
+//               << " max|flux|=" << fluxMax << "@edge" << fluxMaxEdge
+//               << " fluxMax(x,y)=(" << fluxMaxCenter[0] << "," << fluxMaxCenter[1] << ")"
+//               << " max|R|=" << rMax << "@cell" << rMaxCell << ",k" << rMaxComp
+//               << " max|F_mass,wall|=" << maxWallBoundaryMassFlux()
+//               << " edges=" << edges.size() << "\n";
 
-    if (dtLocal != nullptr && !dtLocal->empty()) {
-        const auto mmDt = std::minmax_element(dtLocal->begin(), dtLocal->end());
-        std::cout << "[debug]   dtLocal[min,max]=(" << *mmDt.first << "," << *mmDt.second << ")\n";
-    }
-}
+//     if (dtLocal != nullptr && !dtLocal->empty()) {
+//         const auto mmDt = std::minmax_element(dtLocal->begin(), dtLocal->end());
+//         std::cout << "[debug]   dtLocal[min,max]=(" << *mmDt.first << "," << *mmDt.second << ")\n";
+//     }
+// }
 
 double FirstorderEuler::maxWallBoundaryMassFlux() const {
-    if (boundaryFaces_.empty()) {
-        return 0.0;
-    }
-
-    const EulerBoundaryConditions bcModel = makeBoundaryConditions(config_);
-    const auto flux = makeFlux(config_.fluxScheme);
-
     double maxAbsMassFlux = 0.0;
+
     for (const auto& f : boundaryFaces_) {
         const BoundaryKind kind = boundaryKindFromTitle(f.boundaryTitle, config_);
-        if (kind != BoundaryKind::WallSlip) {
-            continue;
-        }
+        if (kind != BoundaryKind::WallSlip) continue;
 
-        EulerBoundaryConditions::Context ctx;
-        ctx.time = time_;
-        ctx.faceCenter = f.center;
+        // orient outward
+        Vec2 nFace = f.normal;
+        const Vec2 c = cellCentroid(f.elem);
+        const Vec2 toFace{ f.center[0] - c[0], f.center[1] - c[1] };
+        if (dot2(nFace, toFace) < 0.0) nFace = neg2(nFace);
+
+        BoundaryFace fFixed = f;
+        fFixed.normal = nFace;
 
         const Conserved UL = U_.at(f.elem);
-        const Vec2 nUnit = normalized(f.normal);
-        const Eigen::Vector2d n(nUnit[0], nUnit[1]);
-        const Conserved UR = bcModel.boundaryState(toBoundaryType(kind), UL, nUnit, ctx);
-        const Conserved F = fromEigen((*flux)(toEigen(UL), toEigen(UR), config_.gamma, n));
+        const Conserved F = computeBoundaryFluxFromModules(fFixed, UL, kind);
         maxAbsMassFlux = std::max(maxAbsMassFlux, std::abs(F[0]));
     }
+
     return maxAbsMassFlux;
 }
+
+
 
 double FirstorderEuler::l2Norm(const std::vector<Conserved>& values) {
     double acc = 0.0;
