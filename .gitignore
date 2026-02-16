@@ -21,6 +21,8 @@ external/*
 
 # Other files
 *.zip
+*.vtk
 
 # Build directories
 build*/
+
