@@ -683,6 +683,7 @@ std::vector<FirstorderEuler::EdgeFluxContribution> FirstorderEuler::computeEdgeF
     for (const auto& f : boundaryFaces_) {
         const Conserved& UL = U_.at(f.elem);
         const BoundaryKind kind = boundaryKindFromTitle(f.boundaryTitle, config_);
+        const EulerBoundaryConditions bcModel = makeBoundaryConditions(config_);
 
         Vec2 nFace = f.normal;
         const Vec2 c = cellCentroid(f.elem);
