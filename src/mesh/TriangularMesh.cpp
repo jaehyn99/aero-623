@@ -191,10 +191,7 @@ TriangularMesh::TriangularMesh(const std::string& fileName){
         }
         const Eigen::Vector2d& p1 = node(elem._pointID[localFaceID]); // Point not on this edge
         const Eigen::Vector2d& p2 = node(elem._pointID[(localFaceID+1)%3]); // One of the points on this edge
-        if ((p2-p1).dot(face._normal) > 0) face._normal *= -1;
-
-        // Check for periodic faces
-        if (face._periodicFaceID != -1 && elemID > face._periodicElemID) face._normal *= -1;
+        if ((p1-p2).dot(face._normal) > 0) face._normal *= -1;
     }
 }
 
@@ -241,7 +238,7 @@ void TriangularMesh::writeGri(const std::string& fileName) const noexcept{
     while (!stop){
         for (auto face: _faces){
             if (face.isBoundaryFace()){
-                if (face._periodicFaceID == -1) periodicEdgeID.push_back(0);
+                if (!face.isPeriodicFace()) periodicEdgeID.push_back(0);
                 else{
                     periodicEdgeID.push_back(i);
                     i++;
@@ -263,8 +260,7 @@ void TriangularMesh::writeGri(const std::string& fileName) const noexcept{
     of.open(fileBase + "I2E.txt");
     for (std::size_t i = 0; i < _faces.size(); i++){
         const Face& face = _faces[i];
-        if (face.isBoundaryFace() && face._periodicFaceID == -1) continue;
-
+        if (face.isBoundaryFace() && !face.isPeriodicFace()) continue;
         if (!face.isBoundaryFace()){ // interior face
             // Elem numbers
             std::size_t elemLID = face._elemID[0];
@@ -298,7 +294,7 @@ void TriangularMesh::writeGri(const std::string& fileName) const noexcept{
     of.open(fileBase + "B2E.txt");
     for (std::size_t i = 0; i < _faces.size(); i++){
         const Face& face = _faces[i];
-        if (!face.isBoundaryFace() || face._periodicFaceID != -1) continue;
+        if (!face.isBoundaryFace() || face.isPeriodicFace()) continue;
 
         std::size_t elemID = face._elemID[0]; // Elem number
         // Local face number
@@ -314,7 +310,7 @@ void TriangularMesh::writeGri(const std::string& fileName) const noexcept{
     of.open(fileBase + "In.txt");
     for (std::size_t i = 0; i < _faces.size(); i++){
         const Face& face = _faces[i];
-        if (face.isBoundaryFace() && face._periodicFaceID == -1) continue;
+        if (face.isBoundaryFace() && !face.isPeriodicFace()) continue;
         std::size_t elemID = face._elemID[0];
         const Element& elem = _elems[elemID];
         std::size_t localFaceID = std::find(elem._faceID.cbegin(), elem._faceID.cend(), i) - elem._faceID.cbegin();
@@ -326,7 +322,7 @@ void TriangularMesh::writeGri(const std::string& fileName) const noexcept{
     of.open(fileBase + "Bn.txt");
     for (std::size_t i = 0; i < _faces.size(); i++){
         const Face& face = _faces[i];
-        if (!face.isBoundaryFace() || face._periodicFaceID != -1) continue;
+        if (!face.isBoundaryFace() || face.isPeriodicFace()) continue;
         std::size_t elemID = face._elemID[0];
         const Element& elem = _elems[elemID];
         std::size_t localFaceID = std::find(elem._faceID.cbegin(), elem._faceID.cend(), i) - elem._faceID.cbegin();
