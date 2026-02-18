@@ -203,7 +203,7 @@ Eigen::Vector2d TriangularMesh::normal(std::size_t elemID, std::size_t localFace
     Eigen::Vector2d n = face._normal;
     if (face._elemID[1] == elemID) return -n; // on element R, revert the normal vector
     if (face._periodicElemID == -1) return n; // on element L and not periodic, normal is correct
-    if (elemID < face._periodicElemID) return n; // still correctly pointing from L to R
+    if (int(elemID) < face._periodicElemID) return n; // still correctly pointing from L to R
     return -n;
 }
 

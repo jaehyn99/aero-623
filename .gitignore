@@ -24,3 +24,5 @@ external/*
 
 # Build directories
 build*/
+Makefile
+*/CMakeLists.txt

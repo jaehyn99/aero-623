@@ -1,24 +1,25 @@
 #include "StateMesh.h"
+#include "BoundaryCondition.h"
 #include "TriangularMesh.h"
 
-/* Storage order:
-    ** Each column contains the states (mass, momentum, and energy) of the same element.
-    ** Each row contains a single state across all elements.
-*/
-
-StateMesh::StateMesh(std::shared_ptr<TriangularMesh> mesh):
-    _spatialMesh(mesh),
-    _stateMesh(Eigen::MatrixXd::Zero(4, _spatialMesh->numElems()))
-{}
-
-StateMesh& StateMesh::operator=(const Eigen::MatrixXd& other){
-    assert(_stateMesh.rows() == other.rows() && _stateMesh.cols() == other.cols());
-    _stateMesh = other;
-    return *this;
+StateMesh::StateMesh(std::shared_ptr<TriangularMesh> spatialMesh, std::vector<std::shared_ptr<BoundaryCondition>>& bc, const Eigen::MatrixXd& array):
+    _spatialMesh(spatialMesh),
+    _bc(bc),
+    _stateMesh(array)
+{
+    assert(_spatialMesh->numElems() == std::size_t(_stateMesh.cols()));
 }
 
-StateMesh& StateMesh::operator=(Eigen::MatrixXd&& other){
-    assert(_stateMesh.rows() == other.rows() && _stateMesh.cols() == other.cols());
-    _stateMesh = std::move(other);
-    return *this;
+StateMesh::StateMesh(std::shared_ptr<TriangularMesh> spatialMesh, std::vector<std::shared_ptr<BoundaryCondition>>& bc, Eigen::MatrixXd&& array):
+    _spatialMesh(spatialMesh),
+    _bc(bc),
+    _stateMesh(std::move(array))
+{
+    assert(_spatialMesh->numElems() == std::size_t(_stateMesh.cols()));
 }
+
+StateMesh::StateMesh(std::shared_ptr<TriangularMesh> spatialMesh, std::vector<std::shared_ptr<BoundaryCondition>>& bc, Eigen::Index states, double u0):
+    _spatialMesh(spatialMesh),
+    _bc(bc),
+    _stateMesh(Eigen::MatrixXd::Constant(states, _spatialMesh->numElems(), u0))
+{}    
