@@ -24,8 +24,8 @@ void FVSteadySolver::solve(StateMesh& u) const{
     bool isConverged = false;
     while (!isConverged){
         std::cout << norm << std::endl;
-        double dt = _stepper->dt(u).minCoeff();
-        _integrator->integrate(func, u, 0, dt);
+        Eigen::ArrayXd dt = _stepper->dt(u);
+        _integrator->integrate(func, u.matrix(), 0, dt);
 
         norm = func(0, u.matrix()).lpNorm<1>();      
         _l1norm.push_back(norm);

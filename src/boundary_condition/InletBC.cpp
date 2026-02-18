@@ -30,7 +30,7 @@ Eigen::Vector4d InletBC::computeFlux(const Eigen::Vector4d& UP, const Eigen::Vec
 	double C = 4*_gamma*RTT/(gm1*gm1) - JP*JP;
 	double MB1 = (-B + std::sqrt(B*B - 4*A*C))/(2*A);
 	double MB2 = (-B - std::sqrt(B*B - 4*A*C))/(2*A);
-	double MB; // = MB1*MB2 < 0 ?  : std::min(std::abs(MB1), std::abs(MB2));
+	double MB;
 	if (MB1*MB2 < 0) MB = std::max(MB1, MB2);
 	else if (MB1 > 0) MB = std::min(MB1, MB2);
 	else throw std::runtime_error("ERROR: Both Mach number solutions are negative.");

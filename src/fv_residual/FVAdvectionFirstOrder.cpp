@@ -45,8 +45,6 @@ Eigen::MatrixXd FVAdvectionFirstOrder::computeResidual(const StateMesh& u) const
                         flux = u.bc(boundaryID)->computeFlux(u.cell(e), normal);
                         if (flux.array().isNaN().any()){
                             std::cout << "NaN flux on a non-periodic boundary " << face._title << " of cell " << e << std::endl;
-                            for (auto str: bcNames){ std::cout << str << " ";}
-                            std::cout << std::endl;
                             std::cout << "Cell: " << u.cell(e).transpose() << std::endl;
                             std::cout << "Normal: " << normal.transpose() << std::endl;
                             std::cout << "Flux: " << flux.transpose() << std::endl; 

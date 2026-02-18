@@ -43,7 +43,7 @@ int main() {
     std::shared_ptr<FVFlux> flux = std::make_shared<RoeFlux>(gamma);
     std::shared_ptr<FVResidual> residual = std::make_shared<FVAdvectionFirstOrder>(flux);
     std::shared_ptr<TimeIntegrator> integrator = std::make_shared<SSP_RK2>();
-    std::shared_ptr<TimeStepper> stepper = std::make_shared<LocalTimeStepper>(0.5, gamma, flux);
+    std::shared_ptr<TimeStepper> stepper = std::make_shared<LocalTimeStepper>(0.1, gamma, flux);
     FVSteadySolver ssSolver(residual, integrator, stepper);
     ssSolver.solve(states);
 
