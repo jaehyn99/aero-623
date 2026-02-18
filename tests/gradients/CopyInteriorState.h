@@ -12,6 +12,6 @@ public:
         const Eigen::Vector2d&
     ) const override
     {
-        return UP;   // critical
+        return UP;
     }
 };

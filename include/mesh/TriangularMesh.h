@@ -19,7 +19,8 @@ class TriangularMesh{
 
         Face(const TriangularMesh& mesh, std::size_t pointID1, std::size_t pointID2, std::size_t nf=2, const std::string& title="");
 
-        bool isBoundaryFace() const noexcept{ return _title != ""; };
+        bool isBoundaryFace() const noexcept{ return _title != ""; }
+        bool isPeriodicFace() const noexcept{ return _periodicFaceID != -1; }
         bool operator==(const Face& other) const noexcept;
     };
 

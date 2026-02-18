@@ -81,7 +81,6 @@ void SecondOrderEuler::computeGrad_pn(
         gradY.col(elemR) -= Uhat * normal(1) * edge_length; // opposite sign for right cell
 
         // Check if edge is periodic
-        const auto& face = mesh.face(faceID);
         const bool isPeriodic = (face._periodicFaceID != -1);   // periodic interior connection
 
         // Dump if periodic

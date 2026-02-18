@@ -163,8 +163,8 @@ int main()
     // ------------------ Load Connectivity ------------------
     Eigen::MatrixXi I2E = loadMatrix("projects/Project-1/meshGlobalRefined1_outputI2E.txt", 4).cast<int>();
     Eigen::MatrixXi B2E = loadMatrix("projects/Project-1/meshGlobalRefined1_outputB2E.txt", 3).cast<int>();
-    Eigen::MatrixXd In  = - loadMatrix("projects/Project-1/meshGlobalRefined1_outputIn.txt", 2);
-    Eigen::MatrixXd Bn  = - loadMatrix("projects/Project-1/meshGlobalRefined1_outputBn.txt", 2);
+    Eigen::MatrixXd In  = loadMatrix("projects/Project-1/meshGlobalRefined1_outputIn.txt", 2);
+    Eigen::MatrixXd Bn  = loadMatrix("projects/Project-1/meshGlobalRefined1_outputBn.txt", 2);
     Eigen::VectorXd Area = loadVector("projects/Project-1/meshGlobalRefined1_outputArea.txt");
 
     // ------------------ Solver Setup ------------------
