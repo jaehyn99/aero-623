@@ -1,13 +1,11 @@
-
 #include <iostream>
 #include <cassert>
 #include <fstream>
-#include <set>
 #include <Eigen/Dense>
 
 #include "solver/SecondorderEuler.h"
 #include "mesh/TriangularMesh.h"
-#include "ConstantBoundaryState.h"
+#include "CopyInteriorState.h"
 
 // --------------------------------------------------
 // Utility: load matrix from file
@@ -46,6 +44,7 @@ Eigen::VectorXd loadVector(const std::string& filename)
 
     return vec;
 }
+
 
 // --------------------------------------------------
 // Write VTK file for ParaView
@@ -123,8 +122,9 @@ void writeVTK(const TriangularMesh& mesh,
     out.close();
 }
 
+
 // --------------------------------------------------
-// Dummy fluxes (not used for gradient test)
+// Dummy fluxes
 // --------------------------------------------------
 class DummyFlux : public numericalFlux {
 public:
@@ -157,20 +157,15 @@ int main()
     using StateMatrix = Eigen::Matrix<double,4,Eigen::Dynamic>;
 
     // ------------------ Load Mesh ------------------
-    TriangularMesh mesh("projects/Project-1/mesh_refined_2394.gri");
-    mesh.writeGri("projects/Project-1/mesh_refined_2394");
+    TriangularMesh mesh("projects/Project-1/meshGlobalRefined1.gri");
+    mesh.writeGri("projects/Project-1/meshGlobalRefined1_output.gri"); // Write out to verify correct loading
 
     // ------------------ Load Connectivity ------------------
-    Eigen::MatrixXi I2E = loadMatrix("projects/Project-1/mesh_refined_2394I2E.txt", 4).cast<int>();
-    Eigen::MatrixXi B2E = loadMatrix("projects/Project-1/mesh_refined_2394B2E.txt", 3).cast<int>();
-    Eigen::MatrixXd In  = - loadMatrix("projects/Project-1/mesh_refined_2394In.txt", 2);
-    Eigen::MatrixXd Bn  = - loadMatrix("projects/Project-1/mesh_refined_2394Bn.txt", 2);
-    Eigen::VectorXd Area = loadVector("projects/Project-1/mesh_refined_2394Area.txt");
-
-    std::cout << "I2E rows: " << I2E.rows() << "\n";
-    std::cout << "In rows:  " << In.rows()  << "\n";
-    std::cout << "B2E rows: " << B2E.rows() << "\n";
-    std::cout << "Bn rows:  " << Bn.rows()  << "\n";
+    Eigen::MatrixXi I2E = loadMatrix("projects/Project-1/meshGlobalRefined1_outputI2E.txt", 4).cast<int>();
+    Eigen::MatrixXi B2E = loadMatrix("projects/Project-1/meshGlobalRefined1_outputB2E.txt", 3).cast<int>();
+    Eigen::MatrixXd In  = - loadMatrix("projects/Project-1/meshGlobalRefined1_outputIn.txt", 2);
+    Eigen::MatrixXd Bn  = - loadMatrix("projects/Project-1/meshGlobalRefined1_outputBn.txt", 2);
+    Eigen::VectorXd Area = loadVector("projects/Project-1/meshGlobalRefined1_outputArea.txt");
 
     // ------------------ Solver Setup ------------------
     DummyFlux numFlux;
@@ -178,40 +173,77 @@ int main()
     DummyBoundaryFlux outletFlux;
     DummyBoundaryFlux wallFlux;
 
-    ConstantBoundaryState inletState;
-    ConstantBoundaryState outletState;
-    ConstantBoundaryState wallState;
+    CopyInteriorState inletState;
+    CopyInteriorState outletState;
+    CopyInteriorState wallState;
 
     solver::SecondOrderEuler solver(numFlux, inletFlux, outletFlux, wallFlux, inletState, outletState, wallState, 1.4);
 
-    // ------------------ Constant State Test ------------------
     int nElem = Area.size();
 
-    StateMatrix U = StateMatrix::Ones(4, nElem);
+    // --------------------------------------------------
+    // Linear X-Variation Test
+    // U(x,y) = slope * x
+    // --------------------------------------------------
+
+    StateMatrix U(4, nElem);
     StateMatrix gradX = StateMatrix::Zero(4, nElem);
     StateMatrix gradY = StateMatrix::Zero(4, nElem);
 
-    // // Walk over 3 edges test
-    // solver.test_ComputeGradient(mesh, I2E, B2E, In, Bn, Area, U, gradX, gradY);
+    Eigen::Vector4d slope;
+    slope << 1.0, 2.0, -0.5, 3.0;
 
-    // Plane normals test
+    for (int e = 0; e < nElem; ++e)
+    {
+        Eigen::Vector2d centroid = mesh.centroid(e);
+        double x = centroid(0);
+        double y = centroid(1);
+
+        for (int v = 0; v < 4; ++v)
+            U(v,e) = slope(v) * x;  // Linear variation in both x and y to test gradX and gradY
+    }
+
     solver.test_ComputeGradient_pn(mesh, I2E, B2E, In, Bn, Area, U, gradX, gradY);
 
     // ------------------ Write VTK ------------------
-    writeVTK(mesh, U, gradX, gradY, "gradient_output_constant.vtk");
+    writeVTK(mesh, U, gradX, gradY, "pn_gradient_output_linear_x.vtk");
 
-    std::cout << "VTK file written: gradient_output_constant.vtk\n";
+    std::cout << "VTK file written: pn_gradient_output_linear_x.vtk\n";
 
-    double tol = 1e-12;
+    // --------------------------------------------------
+    // Verification
+    // --------------------------------------------------
+
+    double tol = 1e-10;
+    bool pass = true;
 
     for (int e = 0; e < nElem; ++e)
+    {
         for (int v = 0; v < 4; ++v)
-            assert(std::abs(gradX(v,e)) < tol &&
-                   std::abs(gradY(v,e)) < tol);
+        {
+            if (std::abs(gradX(v,e) - slope(v)) > tol)
+            {
+                std::cout << "gradX mismatch at elem "
+                          << e << " var " << v
+                          << " Expected: " << slope(v)
+                          << " Got: " << gradX(v,e) << "\n";
+                pass = false;
+            }
 
-    std::cout << "Gradient constant-state test PASSED\n";
+            if (std::abs(gradY(v,e)) > tol)
+            {
+                std::cout << "gradY nonzero at elem "
+                          << e << " var " << v
+                          << " Value: " << gradY(v,e) << "\n";
+                pass = false;
+            }
+        }
+    }
 
-    
+    if (pass)
+        std::cout << "Linear X-gradient test PASSED\n";
+    else
+        std::cout << "Linear X-gradient test FAILED\n";
 
     return 0;
 }

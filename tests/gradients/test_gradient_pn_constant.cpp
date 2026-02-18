@@ -1,4 +1,3 @@
-
 #include <iostream>
 #include <cassert>
 #include <fstream>
@@ -191,16 +190,12 @@ int main()
     StateMatrix gradX = StateMatrix::Zero(4, nElem);
     StateMatrix gradY = StateMatrix::Zero(4, nElem);
 
-    // // Walk over 3 edges test
-    // solver.test_ComputeGradient(mesh, I2E, B2E, In, Bn, Area, U, gradX, gradY);
-
-    // Plane normals test
     solver.test_ComputeGradient_pn(mesh, I2E, B2E, In, Bn, Area, U, gradX, gradY);
 
     // ------------------ Write VTK ------------------
-    writeVTK(mesh, U, gradX, gradY, "gradient_output_constant.vtk");
+    writeVTK(mesh, U, gradX, gradY, "pn_gradient_output_constant.vtk");
 
-    std::cout << "VTK file written: gradient_output_constant.vtk\n";
+    std::cout << "VTK file written: pn_gradient_output_constant.vtk\n";
 
     double tol = 1e-12;
 
@@ -212,6 +207,5 @@ int main()
     std::cout << "Gradient constant-state test PASSED\n";
 
     
-
     return 0;
 }
