@@ -8,6 +8,13 @@
 using StateMatrix = Eigen::Matrix<double,4,Eigen::Dynamic>;
 using State = Eigen::Vector4d;
 
+// ======================================================
+// Dubug Includes
+#include <fstream>
+#include <iomanip>
+#include <cstdlib>
+// ======================================================
+
 
 namespace solver {
 
@@ -48,21 +55,40 @@ void SecondOrderEuler::computeGradient(
     StateMatrix& gradX,
     StateMatrix& gradY) const
 {
+    // open once per call (overwrite each run)
+    std::ofstream dbg("periodic_edges_debug.txt", std::ios::trunc);
+    dbg << std::setprecision(17);
+    dbg << "Periodic edge debug log\n";
 
+    std::vector<bool> visited(mesh.numFaces(), false);
+    // ===============================
     // ===============================
     // Interior Faces
     // ===============================
-    for (int f_i = 0; f_i < I2E.rows(); ++f_i)
+    for (int f_i = 0; f_i<I2E.rows(); ++f_i)
     {
         // Get left and right cell indices for the edge
         int elemL = I2E(f_i,0)-1;
         int elemR = I2E(f_i,2)-1;
         int lfL    = I2E(f_i,1) - 1;                 // local face on elemL
         int faceID = mesh.elem(elemL)._faceID[lfL];  // global face index
+        
+        const auto& face = mesh.face(faceID);
+        if (visited[faceID]) {
+            continue; // Skip if this face has already been visited (handles periodic pairs)
+        }
+        visited[faceID] = true;
+        visited[face._periodicFaceID] = true; // Mark the periodic counterpart as visited to avoid double counting
 
         // Get edge normal vector and length
         Eigen::Vector2d normal = In.row(f_i);
         double edge_length = mesh.length(faceID);
+
+        if (face.isPeriodicFace()){
+            if (face._elemID[0] > face._periodicElemID){
+                normal *= -1;
+            }
+        }
 
         // Get cell center state values for left and right cells
         /** Instead of storing a copy of the state vector, we can directly reference the elements */
@@ -77,6 +103,46 @@ void SecondOrderEuler::computeGradient(
         gradY.col(elemL) += Uhat * normal(1) * edge_length;
         gradX.col(elemR) -= Uhat * normal(0) * edge_length; // opposite sign for right cell
         gradY.col(elemR) -= Uhat * normal(1) * edge_length; // opposite sign for right cell
+
+        // Check if edge is periodic
+        const bool isPeriodic = (face._periodicFaceID != -1);   // periodic interior connection
+
+        // Dump if periodic
+        if (isPeriodic) {
+            const Eigen::Vector2d cL = mesh.centroid(elemL);
+            const Eigen::Vector2d cR = mesh.centroid(elemR);
+
+            dbg << "\n=== PERIODIC EDGE HIT (interior loop) ===\n";
+            dbg << "edge(f_i) = " << f_i << " / " << I2E.rows() << "\n";
+            dbg << "faceID    = " << faceID << "\n";
+
+            dbg << "L: elemID = " << elemL << "   centroid = " << cL.transpose() << "\n";
+            dbg << "R: elemID = " << elemR << "   centroid = " << cR.transpose() << "\n";
+
+            dbg << "lfL       = " << lfL << "\n";
+            dbg << "I2E row    = " << I2E(f_i,0) << " " << I2E(f_i,1) << " "
+                            << I2E(f_i,2) << " " << I2E(f_i,3) << "\n";
+
+            dbg << "normal    = " << normal.transpose() << "\n";
+            dbg << "length    = " << edge_length << "\n";
+
+            dbg << "face pts  = " << face._pointID[0] << " " << face._pointID[1] << "\n";
+            dbg << "elemID    = " << face._elemID[0] << " " << face._elemID[1] << "\n";
+            dbg << "periodicFaceID = " << face._periodicFaceID << "\n";
+            dbg << "periodicElemID = " << face._periodicElemID << "\n";
+            dbg << "title     = " << face._title << "\n";
+            dbg << "nf        = " << face._nf << "\n";
+
+            dbg << "UL        = " << UL.transpose() << "\n";
+            dbg << "UR        = " << UR.transpose() << "\n";
+
+            dbg << "gradX(L) before = " << gradX.col(elemL).transpose() << "\n";
+            dbg << "gradY(L) before = " << gradY.col(elemL).transpose() << "\n";
+            dbg << "gradX(R) before = " << gradX.col(elemR).transpose() << "\n";
+            dbg << "gradY(R) before = " << gradY.col(elemR).transpose() << "\n";
+            dbg << "========================================\n";
+            dbg.flush(); // optional
+        }
     }
 
     // ===============================
@@ -141,6 +207,7 @@ StateMatrix SecondOrderEuler::computeResidualFromGradient(
     const StateMatrix& gradX,
     const StateMatrix& gradY) const
 {
+    std::vector<bool> visited(mesh.numFaces(), false);
 
     StateMatrix R = StateMatrix::Zero(U.rows(), U.cols());
     // ===============================
@@ -154,22 +221,36 @@ StateMatrix SecondOrderEuler::computeResidualFromGradient(
         int lfL    = I2E(f_i,1) - 1;                 // local face on elemL
         int faceID = mesh.elem(elemL)._faceID[lfL];  // global face index
 
+        const auto& face = mesh.face(faceID);
+        if (visited[faceID]) {
+            continue; // Skip if this face has already been visited (handles periodic pairs)
+        }
+        visited[faceID] = true;
+        visited[face._periodicFaceID] = true; // Mark the periodic counterpart as visited to avoid double counting
+
         // Get edge normal vector, length and midpoint coordinates
         Eigen::Vector2d normal = In.row(f_i);
         double edge_length = mesh.length(faceID);
-        const auto& face = mesh.face(faceID);
-        Eigen::Vector2d midpoint = 0.5 * (mesh.node(face._pointID[0]) + mesh.node(face._pointID[1]));
+        // const auto& face = mesh.face(faceID);
+        // Eigen::Vector2d midpoint = 0.5 * (mesh.node(face._pointID[0]) + mesh.node(face._pointID[1]));
 
         // Get state vector at the edge midpoint for left face
+        int faceIDL = mesh.elem(elemL)._faceID[lfL];
+        const auto& faceL = mesh.face(faceIDL);
+        Eigen::Vector2d midpointL = 0.5 * (mesh.node(faceL._pointID[0]) + mesh.node(faceL._pointID[1]));
         const State& UL = U.col(elemL);
         Eigen::Vector2d centroidL = mesh.centroid(elemL);
-        Eigen::Vector2d dxL = midpoint - centroidL;
+        Eigen::Vector2d dxL = midpointL - centroidL;
         State UhatL = UL + gradX.col(elemL) * dxL(0) + gradY.col(elemL) * dxL(1);
 
         // Get state vector at the edge midpoint for right face
+        int lfR = I2E(f_i,3) - 1; // local face on elemR
+        int faceIDR = mesh.elem(elemR)._faceID[lfR];
+        const auto& faceR = mesh.face(faceIDR);
+        Eigen::Vector2d midpointR = 0.5 * (mesh.node(faceR._pointID[0]) + mesh.node(faceR._pointID[1]));
         const State& UR = U.col(elemR);
         Eigen::Vector2d centroidR = mesh.centroid(elemR);
-        Eigen::Vector2d dxR = midpoint - centroidR;
+        Eigen::Vector2d dxR = midpointR - centroidR;
         State UhatR = UR + gradX.col(elemR) * dxR(0) + gradY.col(elemR) * dxR(1);
 
         // use flux function to get the flux at the edge midpoint using uL and uR

@@ -191,11 +191,11 @@ int main()
     StateMatrix gradX = StateMatrix::Zero(4, nElem);
     StateMatrix gradY = StateMatrix::Zero(4, nElem);
 
-    // // Walk over 3 edges test
-    // solver.test_ComputeGradient(mesh, I2E, B2E, In, Bn, Area, U, gradX, gradY);
+    // Walk over 3 edges test
+    solver.test_ComputeGradient(mesh, I2E, B2E, In, Bn, Area, U, gradX, gradY);
 
-    // Plane normals test
-    solver.test_ComputeGradient_pn(mesh, I2E, B2E, In, Bn, Area, U, gradX, gradY);
+    // // Plane normals test
+    // solver.test_ComputeGradient_pn(mesh, I2E, B2E, In, Bn, Area, U, gradX, gradY);
 
     // ------------------ Write VTK ------------------
     writeVTK(mesh, U, gradX, gradY, "gradient_output_constant.vtk");

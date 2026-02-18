@@ -78,37 +78,37 @@ public:
                                 const Eigen::VectorXd& Area,
                                 const StateMatrix& U) const;
 
-    // // ======================================================
-    // // Public Gradient Function testing
-    // // ======================================================
-    // void test_ComputeGradient(TriangularMesh& mesh,
-    //                       const Eigen::MatrixXi& I2E,
-    //                       const Eigen::MatrixXi& B2E,
-    //                       const Eigen::MatrixXd& In,
-    //                       const Eigen::MatrixXd& Bn,
-    //                       const Eigen::VectorXd& Area,
-    //                       const StateMatrix& U,
-    //                       StateMatrix& gradX,
-    //                       StateMatrix& gradY) const
-    // {
-    //     computeGradient(mesh, I2E, B2E, In, Bn, Area, U, gradX, gradY);
-    // }
-
     // ======================================================
-    // Public Plane Normal Gradient Function testing
+    // Public Gradient Function testing
     // ======================================================
-    void test_ComputeGradient_pn(TriangularMesh& mesh,
-                            const Eigen::MatrixXi& I2E,
-                            const Eigen::MatrixXi& B2E,
-                            const Eigen::MatrixXd& In,
-                            const Eigen::MatrixXd& Bn,
-                            const Eigen::VectorXd& Area,
-                            const StateMatrix& U,
-                            StateMatrix& gradX,
-                            StateMatrix& gradY) const
+    void test_ComputeGradient(TriangularMesh& mesh,
+                          const Eigen::MatrixXi& I2E,
+                          const Eigen::MatrixXi& B2E,
+                          const Eigen::MatrixXd& In,
+                          const Eigen::MatrixXd& Bn,
+                          const Eigen::VectorXd& Area,
+                          const StateMatrix& U,
+                          StateMatrix& gradX,
+                          StateMatrix& gradY) const
     {
-        computeGrad_pn(mesh, I2E, B2E, In, Bn, Area, U, gradX, gradY);
+        computeGradient(mesh, I2E, B2E, In, Bn, Area, U, gradX, gradY);
     }
+
+    // // ======================================================
+    // // Public Plane Normal Gradient Function testing
+    // // ======================================================
+    // void test_ComputeGradient_pn(TriangularMesh& mesh,
+    //                         const Eigen::MatrixXi& I2E,
+    //                         const Eigen::MatrixXi& B2E,
+    //                         const Eigen::MatrixXd& In,
+    //                         const Eigen::MatrixXd& Bn,
+    //                         const Eigen::VectorXd& Area,
+    //                         const StateMatrix& U,
+    //                         StateMatrix& gradX,
+    //                         StateMatrix& gradY) const
+    // {
+    //     computeGrad_pn(mesh, I2E, B2E, In, Bn, Area, U, gradX, gradY);
+    // }
 };
 
 } // namespace solver
