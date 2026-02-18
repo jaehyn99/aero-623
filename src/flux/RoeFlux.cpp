@@ -63,14 +63,12 @@ double RoeFlux::computeWaveSpeed(const Eigen::Vector4d& UL, const Eigen::Vector4
     double rhoL = UL(0);
     double uL = UL(1)/rhoL;
     double vL = UL(2)/rhoL;
-    double uNL = uL*n(0) + vL*n(1);
     double pL = gm1*(UL(3) - 0.5*rhoL*(uL*uL + vL*vL));
     double HL = (UL(3) + pL)/rhoL;
 
     double rhoR = UR(0);
     double uR = UR(1)/rhoR;
     double vR = UR(2)/rhoR;
-	double uNR = uR*n(0) + vR*n(1);
     double pR = gm1*(UR(3) - 0.5*rhoR*(uR*uR + vR*vR));
 	double HR = (UR(3) + pR)/rhoR;
 

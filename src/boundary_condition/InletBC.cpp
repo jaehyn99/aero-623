@@ -1,4 +1,5 @@
 #include "InletBC.h"
+#include <iostream>
 
 InletBC::InletBC(double rho0, double a0, double alpha, double gamma/*, double t, bool transient*/):
     _rho0(rho0),
@@ -30,10 +31,8 @@ Eigen::Vector4d InletBC::computeFlux(const Eigen::Vector4d& UP, const Eigen::Vec
 	double C = 4*_gamma*RTT/(gm1*gm1) - JP*JP;
 	double MB1 = (-B + std::sqrt(B*B - 4*A*C))/(2*A);
 	double MB2 = (-B - std::sqrt(B*B - 4*A*C))/(2*A);
-	double MB;
-	if (MB1*MB2 < 0) MB = std::max(MB1, MB2);
-	else if (MB1 > 0) MB = std::min(MB1, MB2);
-	else throw std::runtime_error("ERROR: Both Mach number solutions are negative.");
+	double MB = MB1*MB2 < 0 ? std::max(MB1, MB2) : std::min(std::abs(MB1), std::abs(MB2));
+	std::cout << "Mach numbers discriminant = " << B*B - 4*A*C << std::endl;
 
 	double RTB = RTT/(1 + 0.5*gm1*MB*MB);
 	double pB = pT*std::pow(RTB/RTT, _gamma/gm1);
