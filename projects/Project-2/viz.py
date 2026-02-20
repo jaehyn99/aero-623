@@ -94,7 +94,7 @@ def main():
                 frange = [0.0, 0.5]
             plotstate(Mesh, U, p, field, frange, fname)
         else:
-            plotmesh(Mesh, 'mesh.pdf')
+            plotmesh(Mesh, 'mesh.png')
     
 if __name__ == "__main__":
     main()
