@@ -89,16 +89,17 @@ int main() {
     } while (steadyState != 0 && timeOrder != 1);
     if (steadyState == 1) solver = std::make_unique<FVSteadySolver>(residual, integrator, stepper);
     else{
-        int saveEveryIterations, maxIterations;
+        inlet->setTransient(true);
+        int saveEveryNIterations, maxIterations;
         do{
             std::cout << "Enter the frequency (after every how many iterations) that data are saved: ";
-            std::cin >> saveEveryIterations;
-        } while (saveEveryIterations < 1);
+            std::cin >> saveEveryNIterations;
+        } while (saveEveryNIterations < 1);
         do{
             std::cout << "Enter the maximum number of iterations: ";
             std::cin >> maxIterations;
         } while (maxIterations < 1);
-        solver = std::make_unique<FVUnSteadySolver>(residual, integrator, stepper, saveEveryIterations, maxIterations);
+        solver = std::make_unique<FVUnSteadySolver>(residual, integrator, stepper, saveEveryNIterations, maxIterations);
     }
 
     solver->solve(states);

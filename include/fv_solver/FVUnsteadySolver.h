@@ -8,7 +8,7 @@ class FVUnSteadySolver: public FVSolver{
     void solve(StateMesh&) const override;
 
     protected:
-    std::size_t _saveEveryIterations;
+    std::size_t _saveEveryNIterations;
     std::size_t _maxIterations;
 };
 
