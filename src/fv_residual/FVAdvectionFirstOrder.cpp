@@ -1,12 +1,9 @@
 #include "FVAdvectionFirstOrder.h"
-#include "BoundaryCondition.h"
+#include "InletBC.h"
+#include "InletOutletBC.h"
 #include "FVFlux.h"
 #include "StateMesh.h"
 #include "TriangularMesh.h"
-
-#include "InletBC.h"
-#include "InviscidWallBC.h"
-#include "OutletBC.h"
 
 #include <iostream>
 #include <fstream>
@@ -41,11 +38,19 @@ Eigen::MatrixXd FVAdvectionFirstOrder::computeResidual(const StateMesh& u) const
                 Eigen::Vector4d flux;
                 if (face.isBoundaryFace() && !face.isPeriodicFace()){
                     std::size_t boundaryID = std::find(bcNames.cbegin(), bcNames.cend(), face._title) - bcNames.cbegin();
-                    // file << "\tThis is a non-periodic boundary face. It is on boundary " << face._title << ".";
-                    // if (dynamic_cast<InletBC*>(u.bc(boundaryID).get())) file << " This is an inlet BC.\n";
-                    // else if (dynamic_cast<InviscidWallBC*>(u.bc(boundaryID).get())) file << " This is an inviscid wall BC.\n";
-                    // else file << " This is an outlet BC.\n";
-                    flux = u.bc(boundaryID)->computeFlux(u.cell(e), normal);
+                    auto bc = u.bc(boundaryID);
+                    // Transient cases, these lines do nothing if running in steady-state
+                    if (auto inlet = dynamic_cast<InletBC*>(bc.get())){
+                        double y0 = mesh->node(face._pointID[0])[1];
+                        double y1 = mesh->node(face._pointID[1])[1];
+                        inlet->setTransientRho((y1+y0)/2);
+                    } else if (auto inlet = dynamic_cast<InletOutletBC*>(bc.get())){
+                        double y0 = mesh->node(face._pointID[0])[1];
+                        double y1 = mesh->node(face._pointID[1])[1];
+                        inlet->setTransientRho((y1+y0)/2);                       
+                    }
+
+                    flux = bc->computeFlux(u.cell(e), normal);
                     residual.col(e) -= flux * face._length / mesh->area(e);
                     if (flux.array().isNaN().any()){
                         std::cout << "NaN flux on a non-periodic boundary " << face._title << " of cell " << e << std::endl;

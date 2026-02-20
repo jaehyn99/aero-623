@@ -19,7 +19,15 @@
 
 
 int main() {
-    std::shared_ptr<TriangularMesh> mesh = std::make_shared<TriangularMesh>("projects/Project-1/mesh_refined_2394.gri");
+    std::shared_ptr<TriangularMesh> mesh;
+    std::string meshName;
+    do{
+        std::cout << "Enter mesh name (\"coarse\" or \"fine\"): ";
+        std::cin >> meshName;
+        std::transform(meshName.begin(), meshName.end(), meshName.begin(), [](unsigned char c){ return std::tolower(c); });
+    } while (meshName != "coarse" && meshName != "fine");
+    if (meshName == "coarse") mesh = std::make_shared<TriangularMesh>("projects/Project-2/mesh_refined_2394.gri");
+    else mesh = std::make_shared<TriangularMesh>("projects/Project-2/meshGlobalRefined1.gri");
 
     // Inlet conditions
     double gamma = 1.4;
@@ -31,7 +39,7 @@ int main() {
     double M = 0.1;
 
     // Boundary conditions
-    std::shared_ptr<BoundaryCondition> inlet = std::make_shared<InletOutletBC>(rho0, a0, alpha, pout, gamma);
+    std::shared_ptr<InletOutletBC> inlet = std::make_shared<InletOutletBC>(rho0, a0, alpha, pout, gamma);
     std::shared_ptr<BoundaryCondition> wall = std::make_shared<InviscidWallBC>(gamma);
     std::shared_ptr<BoundaryCondition> outlet = std::make_shared<OutletBC>(pout, gamma);
     std::vector<std::shared_ptr<BoundaryCondition>> bc{wall, inlet, wall, outlet};
@@ -44,36 +52,73 @@ int main() {
     states.state(3).fill(p0/(gamma-1) + 0.5*rho0*M*M*a0*a0);
 
     // Solver
-    std::shared_ptr<FVFlux> flux = std::make_shared<HLLEFlux>(gamma);
-    std::shared_ptr<FVResidual> residual = std::make_shared<FVAdvectionFirstOrder>(flux);
-    std::shared_ptr<TimeIntegrator> integrator = std::make_shared<SSP_RK2>();
+    std::shared_ptr<FVFlux> flux;
+    std::string fluxName;
+    do{
+        std::cout << "Enter flux name (\"roe\" or \"hlle\"): ";
+        std::cin >> fluxName;
+        std::transform(fluxName.begin(), fluxName.end(), fluxName.begin(), [](unsigned char c){ return std::tolower(c); });
+    } while (fluxName != "roe" && fluxName != "hlle");
+    if (fluxName == "roe") flux = std::make_shared<RoeFlux>(gamma);
+    else flux = std::make_shared<HLLEFlux>(gamma);
+
+    std::shared_ptr<FVResidual> residual;
+    int FVOrder;
+    do{
+        std::cout << "Enter finite-volume order of accuracy (1 or 2): ";
+        std::cin >> FVOrder;
+    } while (FVOrder != 1 && FVOrder != 2);
+    if (FVOrder == 1) residual = std::make_shared<FVAdvectionFirstOrder>(flux);
+    // else residual = std::make_shared<FVAdvectionSecondOrder>(flux);
+
+    std::shared_ptr<TimeIntegrator> integrator;
+    int timeOrder;
+    do{
+        std::cout << "Enter time integration order of accuracy (2 or 3): ";
+        std::cin >> timeOrder;    
+    } while (timeOrder != 2 && timeOrder != 3);
+    if (timeOrder == 2) integrator = std::make_shared<SSP_RK2>();
+    else integrator = std::make_shared<SSP_RK3>();
+
     std::shared_ptr<TimeStepper> stepper = std::make_shared<LocalTimeStepper>(1, gamma, flux);
-    FVSteadySolver ssSolver(residual, integrator, stepper);
+    std::unique_ptr<FVSolver> solver;
+    int steadyState;
+    do{
+        std::cout << "Enter solver mode (0 = unsteady, 1 = steady): ";
+        std::cin >> steadyState;
+    } while (steadyState != 0 && timeOrder != 1);
+    if (steadyState == 1) solver = std::make_unique<FVSteadySolver>(residual, integrator, stepper);
+    else{
+        int saveEveryIterations, maxIterations;
+        do{
+            std::cout << "Enter the frequency (after every how many iterations) that data are saved: ";
+            std::cin >> saveEveryIterations;
+        } while (saveEveryIterations < 1);
+        do{
+            std::cout << "Enter the maximum number of iterations: ";
+            std::cin >> maxIterations;
+        } while (maxIterations < 1);
+        solver = std::make_unique<FVUnSteadySolver>(residual, integrator, stepper, saveEveryIterations, maxIterations);
+    }
 
-    ssSolver.solve(states);
+    solver->solve(states);
+    std::vector<Eigen::MatrixXd> results = solver->getResult(); // size = 1 if steady, more than 1 if unsteady
+    std::vector<double> l1norm = solver->getNorm();
 
-    auto results = ssSolver.getResult().back();
-    auto l1norm = ssSolver.getNorm();
-
-    std::ofstream file("projects/Project-2/coarse_mesh_steady_first_order.txt");
-    for (Eigen::Index e = 0; e < states.cellCount(); e++) file << results.col(e).transpose() << "\n";
+    std::size_t iter = 0; // or at whatever iteration you want to get data from
+    std::string resultFilePath = "projects/Project-2/";
+    resultFilePath += meshName + "_mesh_";
+    resultFilePath += (steadyState == 0) ? "unsteady_" : "steady_";
+    resultFilePath += (FVOrder == 1) ? "firstorder_" : "secondorder_";
+    resultFilePath += (timeOrder == 2) ? "RK2_" : "RK3_";
+    resultFilePath += fluxName;
+    std::ofstream file(resultFilePath + ".txt");
+    for (Eigen::Index e = 0; e < states.cellCount(); e++) file << results[iter].col(e).transpose() << "\n";
     file.close();
 
-    file.open("projects/Project-2/coarse_mesh_steady_first_order_norm.txt");
+    file.open(resultFilePath + "_norm.txt");
     for (auto norm: l1norm) file << norm << "\n";
-    file.close();    
-
-    // std::ofstream f("last_iteration.txt");
-    // double maxP = 0;
-    // for (Eigen::Index e = 0; e < states.cellCount(); e++){
-    //     f << "Cell " << e << ":\n";
-    //     f << "\tStates: " << states.cell(e).transpose() << ".\n";
-    //     double rhoE = states(3, e);
-    //     double KE = 0.5*(states(1,e)*states(1,e) + states(2,e)*states(2,e)) / states(0,e);
-    //     double P = (gamma-1) * (rhoE - KE);
-    //     if (P > maxP) maxP = P;
-    //     f << "\tPressure: " << P << ".\n\n";
-    // }
+    file.close();
 
     return 0;
 }

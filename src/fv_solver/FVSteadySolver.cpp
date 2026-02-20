@@ -28,16 +28,7 @@ void FVSteadySolver::solve(StateMesh& u) const{
 
         norm = func(0, u.matrix()).lpNorm<1>();      
         _l1norm.push_back(norm);
-        _result.emplace_back(u.matrix());
         isConverged = norm/_l1norm.front() <= _tol;
-        // std::cout << norm << std::endl;
-
-        double maxP = 0;
-        for (Eigen::Index e = 0; e < u.cellCount(); e++){
-            double rhoE = u(3, e);
-            double KE = 0.5*(u(1,e)*u(1,e) + u(2,e)*u(2,e)) / u(0,e);
-            double P = 0.4 * (rhoE - KE);
-            if (P > maxP) maxP = P;
-        }
     }
+    _result.emplace_back(u.matrix());
 }

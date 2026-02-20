@@ -1,13 +1,13 @@
 #include "InletBC.h"
 #include <iostream>
 
-InletBC::InletBC(double rho0, double a0, double alpha, double gamma/*, double t, bool transient*/):
+InletBC::InletBC(double rho0, double a0, double alpha, double gamma, bool transient):
     _rho0(rho0),
+	_rhoTrans(rho0),
     _a0(a0),
     _alpha(alpha),
-    _gamma(gamma)
-    // _t(t),
-    // _transient(transient)
+    _gamma(gamma),
+    _transient(transient)
 {}
 
 Eigen::Vector4d InletBC::computeFlux(const Eigen::Vector4d& UP, const Eigen::Vector2d& n) const{
@@ -21,8 +21,8 @@ Eigen::Vector4d InletBC::computeFlux(const Eigen::Vector4d& UP, const Eigen::Vec
     double pP = gm1*(rhoEP - 0.5*rhoP*(uP*uP + vP*vP));
 	double cP = std::sqrt(_gamma*pP/rhoP);
 	double uNP = uP*n(0) + vP*n(1);
-	double pT = _rho0*_a0*_a0/_gamma;
-	double RTT = pT/_rho0;
+	double pT = _rhoTrans*_a0*_a0/_gamma;
+	double RTT = pT/_rhoTrans;
 	double JP = uNP + 2*cP/gm1;
 	double dn = n(0)*std::cos(_alpha) + n(1)*std::sin(_alpha);
 
@@ -37,8 +37,8 @@ Eigen::Vector4d InletBC::computeFlux(const Eigen::Vector4d& UP, const Eigen::Vec
 		// else if (MB1 > 0) MB = std::min(MB1, MB2);
 		// else throw std::runtime_error("ERROR: Both Mach numbers are negative.");
 		MB = MB1*MB2 < 0 ? std::max(MB1, MB2) : std::min(std::abs(MB1), std::abs(MB2));
-	} else MB = std::sqrt(uP*uP + vP*vP) / cP; // take the interior Mach number value
-	// } else throw std::runtime_error("ERROR: Negative discriminant. Cannot solve for the Mach number.");
+	//} else MB = std::sqrt(uP*uP + vP*vP) / cP; // take the interior Mach number value
+	} else throw std::runtime_error("ERROR: Negative discriminant. Cannot solve for the Mach number.");
 
 	double RTB = RTT/(1 + 0.5*gm1*MB*MB);
 	double pB = pT*std::pow(RTB/RTT, _gamma/gm1);
@@ -64,8 +64,8 @@ Eigen::Vector4d InletBC::computeBoundaryState(const Eigen::Vector4d& UP, const E
     double pP = gm1*(rhoEP - 0.5*rhoP*(uP*uP + vP*vP));
 	double cP = std::sqrt(_gamma*pP/rhoP);
 	double uNP = uP*n(0) + vP*n(1);
-	double pT = _rho0*_a0*_a0/_gamma;
-	double RTT = pT/_rho0;
+	double pT = _rhoTrans*_a0*_a0/_gamma;
+	double RTT = pT/_rhoTrans;
 	double JP = uNP + 2*cP/gm1;
 	double dn = n(0)*std::cos(_alpha) + n(1)*std::sin(_alpha);
 
@@ -83,4 +83,21 @@ Eigen::Vector4d InletBC::computeBoundaryState(const Eigen::Vector4d& UP, const E
 	double uB = MB*cB*std::cos(_alpha);
 	double vB = MB*cB*std::sin(_alpha);
 	return {rhoB, rhoB*uB, rhoB*vB, cB};
+}
+
+void InletBC::setTransientTime(double t) const{
+	if (_transient) _t = t;
+}
+
+void InletBC::setTransientRho(double y) const{
+	if (_transient){
+		double yStat = y + _a0*_t;
+		double eta = yStat/18.0 - std::floor(yStat/18.0) - 0.5;
+		_rhoTrans = _rho0*(1 - 0.1*std::exp(-0.5*(eta/0.1)*(eta/0.1)));
+	}
+}
+
+void InletBC::reset() const noexcept{
+	_rhoTrans = _rho0;
+	_t = 0;
 }

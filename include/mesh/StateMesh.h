@@ -15,6 +15,7 @@ class StateMesh{
     Eigen::Index size() const noexcept{ return _stateMesh.size(); }
     Eigen::Index cellCount() const noexcept{ return _stateMesh.cols(); }
     Eigen::Index stateCount() const noexcept{ return _stateMesh.rows(); }
+    Eigen::Index bcCount() const noexcept{ return _bc.size(); }
 
     // Accessors and modifiers
     // Reference to a single value
