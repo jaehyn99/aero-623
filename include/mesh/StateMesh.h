@@ -30,7 +30,7 @@ class StateMesh{
     Eigen::MatrixXd& matrix() noexcept{ return _stateMesh; }
     const Eigen::MatrixXd& matrix() const noexcept{ return _stateMesh; }
     auto flattened() noexcept{ return Eigen::Map<Eigen::VectorXd>(_stateMesh.data(), size()); }
-    auto flattened() const noexcept{ return Eigen::Map<const Eigen::VectorXd>(_stateMesh.data(), size()); }
+    auto flattened() const noexcept{ return Eigen::Map<const Eigen ::VectorXd>(_stateMesh.data(), size()); }
     auto array() noexcept{ return _stateMesh.array(); }
     auto array() const noexcept{ return _stateMesh.array(); }
     // Reference to the underlying spatial mesh

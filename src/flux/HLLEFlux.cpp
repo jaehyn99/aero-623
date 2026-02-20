@@ -1,4 +1,5 @@
 #include "HLLEFlux.h"
+#include <iostream>
 
 Eigen::Vector4d HLLEFlux::computeFlux(const Eigen::Vector4d& UL, const Eigen::Vector4d& UR, const Eigen::Vector2d& n) const{
 	double gm1 = _gamma - 1.0;
@@ -26,14 +27,15 @@ Eigen::Vector4d HLLEFlux::computeFlux(const Eigen::Vector4d& UL, const Eigen::Ve
     double aL2 = gm1*((EL + pL)/rhoL - 0.5*(uL*uL + vL*vL));
     double aR2 = gm1*((ER + pR)/rhoR - 0.5*(uR*uR + vR*vR));
 
-    double dAvg = std::sqrt((std::sqrt(rhoL)*aL2 + std::sqrt(rhoR)*aR2) / (std::sqrt(rhoL) + std::sqrt(rhoR)) + eta2*(uNR - uNL)*(uNR - uNL));
-
+    double dAvg = (std::sqrt(rhoL)*aL2 + std::sqrt(rhoR)*aR2) / (std::sqrt(rhoL) + std::sqrt(rhoR)) + eta2*(uNR - uNL)*(uNR - uNL);
+    //std::cout << dAvg << ", " << vAvg << std::endl;
+    dAvg = std::sqrt(dAvg);
     double SL = vAvg - dAvg;
     double SR = vAvg + dAvg;
 
     if (SL >= 0.0) return FL; // Want to do masking later
     if (SR <= 0.0) return FR;
-    return SR*FL - SL*FR + SL*SR*(UR-UL)/(SR-SL);
+    return (SR*FL - SL*FR + SL*SR*(UR-UL))/(SR-SL);
 }
 
 double HLLEFlux::computeWaveSpeed(const Eigen::Vector4d& UL, const Eigen::Vector4d& UR, const Eigen::Vector2d& n, double cL, double cR) const{

@@ -29,10 +29,16 @@ Eigen::Vector4d InletBC::computeFlux(const Eigen::Vector4d& UP, const Eigen::Vec
 	double A = _gamma*RTT*dn*dn - 0.5*gm1*JP*JP;
 	double B = 4*_gamma*RTT*dn/gm1;
 	double C = 4*_gamma*RTT/(gm1*gm1) - JP*JP;
-	double MB1 = (-B + std::sqrt(B*B - 4*A*C))/(2*A);
-	double MB2 = (-B - std::sqrt(B*B - 4*A*C))/(2*A);
-	double MB = MB1*MB2 < 0 ? std::max(MB1, MB2) : std::min(std::abs(MB1), std::abs(MB2));
-	std::cout << "Mach numbers discriminant = " << B*B - 4*A*C << std::endl;
+	double MB;
+	if (B*B - 4*A*C >= 0){
+		double MB1 = (-B + std::sqrt(B*B - 4*A*C))/(2*A);
+		double MB2 = (-B - std::sqrt(B*B - 4*A*C))/(2*A);
+		// if (MB1*MB2 < 0) MB = std::max(MB1, MB2);
+		// else if (MB1 > 0) MB = std::min(MB1, MB2);
+		// else throw std::runtime_error("ERROR: Both Mach numbers are negative.");
+		MB = MB1*MB2 < 0 ? std::max(MB1, MB2) : std::min(std::abs(MB1), std::abs(MB2));
+	} else MB = std::sqrt(uP*uP + vP*vP) / cP; // take the interior Mach number value
+	// } else throw std::runtime_error("ERROR: Negative discriminant. Cannot solve for the Mach number.");
 
 	double RTB = RTT/(1 + 0.5*gm1*MB*MB);
 	double pB = pT*std::pow(RTB/RTT, _gamma/gm1);
