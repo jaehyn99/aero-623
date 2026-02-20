@@ -34,11 +34,13 @@ void FVUnSteadySolver::solve(StateMesh& u) const{
     _l1norm.push_back(norm); // the first L1-norm
 
     _result.reserve(_maxIterations/_saveEveryNIterations+1);
+    double t = 0;
     for (std::size_t iter = 0; iter < _maxIterations; iter++){
         double dt = _stepper->dt(u).minCoeff();
-        _integrator->integrate(func, u.matrix(), 0, dt);
+        _integrator->integrate(func, u.matrix(), t, dt);
+        t += dt;
 
-        norm = func(0, u.matrix()).lpNorm<1>();      
+        norm = func(t, u.matrix()).lpNorm<1>();      
         _l1norm.push_back(norm);
         if (iter % _saveEveryNIterations == 0) _result.emplace_back(u.matrix());
     }
