@@ -22,21 +22,21 @@ public:
         double alpha = 0.0;
         double pout = 1.0;
 
-        double cfl = 0.2;
+        double cfl = 0.1;
         double finalTime = 2.0;
-        std::size_t maxIterations = 20000;
+        std::size_t maxIterations = 100000;
         bool localTimeStepping = true;
 
         double residualTolerance = 1e-5;
-        std::size_t saveEvery = 0;
+        std::size_t saveEvery = 1000;
         std::string outputPrefix = "sol";
-        std::string fluxScheme = "hlle"; // "roe" or "hlle"
+        std::string fluxScheme = "roe"; // "roe" or "hlle"
 
-        double initialMach = 0.1;
+        double initialMach = 0.0;
 
         // Boundary-curve role mapping (periodic remains 2<->4 and 6<->8).
-        int inflowCurve = 7;
-        int outflowCurve = 3;
+        int inflowCurve = 3;
+        int outflowCurve = 7;
 
         // Optional debug guard: validate mesh/connectivity arrays after load.
         bool validateMeshOnLoad = true;
@@ -46,7 +46,7 @@ public:
         std::size_t debugEvery = 10;
 
         // One-line progress table cadence ("it t dt ||R||2").
-        std::size_t statusEvery = 10;
+        std::size_t statusEvery = 1000;
     };
 
     struct MeshInputs {

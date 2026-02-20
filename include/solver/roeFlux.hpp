@@ -63,8 +63,10 @@ public:
 	Eigen::Matrix<double, 3, 1> l;
 	l(0) = ucp + ci;
 	l(1) = ucp - ci;
-        l(2) = ucp;
-
+	l(2) = ucp;
+	
+	// double lmax = std::max(l(0), l(1), l(2));
+	// double 
 	double epsilon = 0.1*ci;
 
 	for (int ii = 0; ii < 3; ii++) {
@@ -88,6 +90,7 @@ public:
 	F(1) = 0.5*(FL(1) + FR(1)) - 0.5*(l(2)*du(1) + C1*ui + C2*n(0));
 	F(2) = 0.5*(FL(2) + FR(2)) - 0.5*(l(2)*du(2) + C1*vi + C2*n(1));
 	F(3) = 0.5*(FL(3) + FR(3)) - 0.5*(l(2)*du(3) + C1*Hi + C2*ucp);
+
 
         return F;
     }

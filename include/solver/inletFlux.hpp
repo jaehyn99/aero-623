@@ -1,6 +1,9 @@
 #pragma once
 #include "boundaryFlux.hpp"
 #include <Eigen/Dense>
+#include <algorithm>
+#include <cmath>
+#include <limits>
 
 class inletFlux : public boundaryFlux {
 private:
@@ -19,18 +22,35 @@ public:
         double gamma,
         const Eigen::Vector2d& n
     ) const override {
-	double gm1 = gamma - 1;
-        double rhoP = UP(0); // Will make this a function based on the transient flag and time soon
-	double uP = UP(1)/rhoP;
-	double vP = UP(2)/rhoP;
-	double rhoEP = UP(3);
 
+	const double gm1 = gamma - 1.0;
+	constexpr double rhoFloor = 1e-10;
 	constexpr double pFloor = 1e-10;
+
+	const double rhoP = std::max(rhoFloor, UP(0));
+	const double uP = UP(1)/rhoP;
+	const double vP = UP(2)/rhoP;
+	const double rhoEP = UP(3);
+
 	double pP = gm1*(rhoEP - 0.5*rhoP*(uP*uP + vP*vP));
 	pP = std::max(pFloor, pP);
-	double cP = std::sqrt(gamma*pP/rhoP);
 
-	double uNP = uP*n(0) + vP*n(1);
+	const double cP = std::sqrt(gamma*pP/rhoP);
+	Eigen::Matrix<double, 4, 1> F;
+	const auto fillFlux = [&](double rho, double u, double v, double p, double rhoE) {
+		F(0) = rho*(u*n(0) + v*n(1));
+		F(1) = (rho*u*u + p)*n(0) + rho*u*v*n(1);
+		F(2) = rho*u*v*n(0) + (rho*v*v + p)*n(1);
+		F(3) = u*(rhoE + p)*n(0) + v*(rhoE + p)*n(1);
+	};
+	const double uNP = uP*n(0) + vP*n(1);
+
+	// Robustness: if flow leaves domain through inlet boundary, extrapolate interior state.
+	if (uNP > 0.0) {
+		fillFlux(rhoP, uP, vP, pP, rhoEP);
+		return F;
+	}
+
 	double pT = rho0_*a0_*a0_/gamma;
 	double RTT = pT/rho0_;
 	double JP = uNP + 2*cP/gm1;
@@ -50,30 +70,39 @@ public:
 	// Safe Guard
 	double disc = B*B - 4*A*C;
 	disc = std::max(0.0, disc);
-	double MB1 = (-B + std::sqrt(disc)) / (2*A);
-	double MB2 = (-B - std::sqrt(disc)) / (2*A);
+	
+	double MB = 0.1;
+	if (std::abs(A) > 1e-14) {
+		const double sqrtDisc = std::sqrt(disc);
+		const double MB1 = (-B - sqrtDisc) / (2*A);
+		const double MB2 = (-B + sqrtDisc) / (2*A);
+		const bool m1Pos = MB1 > 0.0;
+		const bool m2Pos = MB2 > 0.0;
+		if (m1Pos && m2Pos) {
+			MB = std::min(MB1, MB2);
+		} else if (m1Pos) {
+			MB = MB1;
+		} else if (m2Pos) {
+			MB = MB2;
+		}
+	}
 
-	double MB;
-	if (MB1*MB2 < 0) {
-		MB = std::max(MB1, MB2);
-	}
-	else {
-		MB = std::min(std::abs(MB1), std::abs(MB2));
-	}
 	double RTB = RTT/(1 + 0.5*gm1*MB*MB);
 	double pB = pT*std::pow(RTB/RTT, gamma/gm1);
-	double rhoB = pB/RTB;
+	// double rhoB = pB/RTB;
+	double rhoB = std::max(rhoFloor, pB/RTB);	
 	double cB = std::sqrt(gamma*pB/rhoB);
-	double uNB = JP - 2*cB/gm1;
+	// double uNB = JP - 2*cB/gm1;
 	double uB = MB*cB*std::cos(alpha_);
 	double vB = MB*cB*std::sin(alpha_);
 	double rhoEB = pB/gm1 + 0.5*rhoB*(uB*uB + vB*vB);
 
-	Eigen::Matrix<double, 4, 1> F;
-	F(0) = rhoB*(uB*n(0) + vB*n(1));
-	F(1) = (rhoB*uB*uB + pB)*n(0) + rhoB*uB*vB*n(1);
-	F(2) = rhoB*uB*vB*n(0) + (rhoB*vB*vB + pB)*n(1);
-	F(3) = uB*(rhoEB + pB)*n(0) + vB*(rhoEB + pB)*n(1);
+	// Eigen::Matrix<double, 4, 1> F;
+	// F(0) = rhoB*(uB*n(0) + vB*n(1));
+	// F(1) = (rhoB*uB*uB + pB)*n(0) + rhoB*uB*vB*n(1);
+	// F(2) = rhoB*uB*vB*n(0) + (rhoB*vB*vB + pB)*n(1);
+	// F(3) = uB*(rhoEB + pB)*n(0) + vB*(rhoEB + pB)*n(1);
+	fillFlux(rhoB, uB, vB, pB, rhoEB);
 	
         return F;
     }

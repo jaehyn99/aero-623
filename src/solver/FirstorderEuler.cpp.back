@@ -66,16 +66,31 @@ BoundaryKind boundaryKindFromTitle(const std::string& title,
     const int curveID = parseCurveId(title);
 
     if (curveID == 2 || curveID == 4 || curveID == 6 || curveID == 8) {
-        return BoundaryKind::Periodic;}
+        return BoundaryKind::Periodic;
+    }
     if (curveID == 1 || curveID == 5) {
-        return BoundaryKind::WallSlip;}
+        return BoundaryKind::WallSlip;
+    }
     if (curveID == config.outflowCurve) {
-        return BoundaryKind::OutflowSubsonic;}
+        return BoundaryKind::OutflowSubsonic;
+    }
     if (curveID == config.inflowCurve) {
-        return BoundaryKind::InflowSteady;}
+        return BoundaryKind::InflowSteady;
+    }
+
     if (curveID == 3 || curveID == 7) {
-        return (curveID == 3) ? BoundaryKind::InflowSteady : BoundaryKind::OutflowSubsonic;}
+        return (curveID == 3) ? BoundaryKind::InflowSteady : BoundaryKind::OutflowSubsonic;
+    }
+
     return BoundaryKind::InflowSteady;
+}
+
+FirstorderEuler::Vec2 normalized(const FirstorderEuler::Vec2& n) {
+    const double mag = std::sqrt(n[0] * n[0] + n[1] * n[1]);
+    if (mag <= 1e-14) {
+        throw std::runtime_error("Encountered near-zero face normal.");
+    }
+    return {n[0] / mag, n[1] / mag};
 }
 
 double spectralRadius(const FirstorderEuler::Conserved& U,
@@ -90,6 +105,78 @@ FirstorderEuler::Conserved fromEigen(const Eigen::Vector4d& u) {
     return {u(0), u(1), u(2), u(3)};
 }
 
+bool PressureAndInternalEnergyClip(const FirstorderEuler::Conserved& Unew,
+                                            const FirstorderEuler::Conserved& Uold,
+                                            double gamma) {
+    constexpr double rhoFloor = 1e-10;
+    constexpr double pFloor = 1e-10;
+    constexpr double minPressureRatio = 0.7;
+
+    const double rhoNew = Unew[0];
+    if (!std::isfinite(rhoNew) || rhoNew <= rhoFloor) {
+        return false;
+    }
+
+    const auto pressureOf = [&](const FirstorderEuler::Conserved& U) {
+        const double rho = std::max(1e-14, U[0]);
+        const double u = U[1] / rho;
+        const double v = U[2] / rho;
+        return (gamma - 1.0) * (U[3] - 0.5 * rho * (u * u + v * v));
+    };
+
+    const double pOld = pressureOf(Uold);
+    const double pNew = pressureOf(Unew);
+    if (!std::isfinite(pOld) || !std::isfinite(pNew) || pNew <= pFloor) {
+        return false;
+    }
+
+    const double minAllowed = minPressureRatio * std::max(pFloor, pOld);
+    if (pNew < minAllowed) {
+        return false;
+    }
+
+    const double rho = rhoNew;
+    const double u = Unew[1] / rho;
+    const double v = Unew[2] / rho;
+    const double eInt = Unew[3] - 0.5 * rho * (u * u + v * v);
+    return std::isfinite(eInt) && eInt > pFloor / (gamma - 1.0);
+}
+
+// void enforcePhysicalState(FirstorderEuler::Conserved& U, double gamma) {
+//     constexpr double rhoFloor = 1e-10;
+//     constexpr double pFloor   = 1e-10;
+
+//     const double gm1 = gamma - 1.0;
+
+//     double rho  = std::isfinite(U[0]) ? U[0] : rhoFloor;
+//     rho = std::max(rhoFloor, rho);
+
+//     double rhou = std::isfinite(U[1]) ? U[1] : 0.0;
+//     double rhov = std::isfinite(U[2]) ? U[2] : 0.0;
+//     double rhoE = std::isfinite(U[3]) ? U[3] : (pFloor / gm1);
+
+//     const double u = rhou / rho;
+//     const double v = rhov / rho;
+
+//     const double kinetic = 0.5 * rho * (u*u + v*v);
+
+//     // Minimum total energy consistent with pFloor:
+//     const double rhoEmin = kinetic + pFloor / gm1;
+
+//     if (!std::isfinite(rhoE) || rhoE < rhoEmin) {
+//         rhoE = rhoEmin;
+//     }
+
+//     // // (Optional) If you want to zero momentum when rho is tiny:
+//     // if (rho == rhoFloor) { rhou = 0.0; rhov = 0.0;}
+
+//     U[0] = rho;
+//     U[1] = rhou;
+//     U[2] = rhov;
+//     U[3] = rhoE;
+// }
+
+
 std::unique_ptr<numericalFlux> makeFlux(const std::string& schemeName) {
     const std::string name = toLower(schemeName);
     if (name == "roe") {
@@ -98,6 +185,7 @@ std::unique_ptr<numericalFlux> makeFlux(const std::string& schemeName) {
     if (name == "hlle") {
         return std::make_unique<HLLEFluxFO>();
     }
+    throw std::runtime_error("Unknown flux scheme: " + schemeName + " (expected 'roe' or 'hlle').");
 }
 
 double spectralRadius(const FirstorderEuler::Conserved& U,
@@ -120,11 +208,16 @@ double spectralRadius(const FirstorderEuler::Conserved& U,
 
 } // namespace
 
+
 FirstorderEuler::FirstorderEuler(MeshInputs inputs, SolverConfig config)
     : inputs_(std::move(inputs)), config_(std::move(config)) {}
 
 void FirstorderEuler::loadInputs() {
     readMeshAndConnectivity();
+    if (config_.validateMeshOnLoad) {
+        validateLoadedArrays();
+    }
+
     U_.assign(elements_.size(), Conserved{0.0, 0.0, 0.0, 0.0});
     residual_.assign(elements_.size(), Conserved{0.0, 0.0, 0.0, 0.0});
 }
@@ -153,25 +246,43 @@ void FirstorderEuler::readMeshAndConnectivity() {
     area_.reserve(static_cast<std::size_t>(triMesh_->numElems()));
     for (std::size_t i = 0; i < static_cast<std::size_t>(triMesh_->numElems()); ++i) {
         const double ai = triMesh_->area(i);
+        if (ai <= 0.0) {
+            throw std::runtime_error("TriangularMesh area is non-positive.");
+        }
         area_.push_back(ai);
     }
+
     buildFacesFromTriangularMesh();
     computePerimeterFromMesh();
 }
 
 void FirstorderEuler::buildFacesFromTriangularMesh() {
+    if (!triMesh_) {
+        throw std::runtime_error("TriangularMesh must be initialized before building face data.");
+    }
+
     interiorFaces_.clear();
     boundaryFaces_.clear();
     periodicEdges_.clear();
+
+    // Build face->owner-element mapping directly from element connectivity.
+    // This avoids depending on TriangularMesh face owner IDs, so solver-side
+    // assembly stays robust even if another branch has older mesh code.
     std::vector<std::array<int, 2>> faceOwners(static_cast<std::size_t>(triMesh_->numFaces()), {-1, -1});
     for (std::size_t elemID = 0; elemID < static_cast<std::size_t>(triMesh_->numElems()); ++elemID) {
         const auto& elem = triMesh_->elem(elemID);
         for (int fid : elem._faceID) {
+            if (fid < 0 || static_cast<std::size_t>(fid) >= faceOwners.size()) {
+                throw std::runtime_error("Element contains out-of-range face ID.");
+            }
             auto& owners = faceOwners[static_cast<std::size_t>(fid)];
-            if (owners[0] == -1){
-                owners[0] = static_cast<int>(elemID);}
-            else if (owners[1] == -1){
-                owners[1] = static_cast<int>(elemID);}
+            if (owners[0] == -1) {
+                owners[0] = static_cast<int>(elemID);
+            } else if (owners[1] == -1) {
+                owners[1] = static_cast<int>(elemID);
+            } else {
+                throw std::runtime_error("Face has more than two owner elements.");
+            }
         }
     }
 
@@ -216,6 +327,8 @@ void FirstorderEuler::buildFacesFromTriangularMesh() {
             periodicPartnerFace[b] = static_cast<int>(a);
         }
     };
+    // pairPeriodicTitles("Curve2", "Curve4");
+    // pairPeriodicTitles("Curve6", "Curve8");
 
     // Resolve periodic titles by curve-id
     auto titleForCurveID = [&](int curveID) -> std::string {
@@ -226,6 +339,7 @@ void FirstorderEuler::buildFacesFromTriangularMesh() {
         }
         return {};
     };
+
     const std::string c2 = titleForCurveID(2);
     const std::string c4 = titleForCurveID(4);
     const std::string c6 = titleForCurveID(6);
@@ -240,11 +354,16 @@ void FirstorderEuler::buildFacesFromTriangularMesh() {
     std::unordered_map<std::string, std::size_t> groupFromTitle;
     std::vector<bool> visitedFace(static_cast<std::size_t>(triMesh_->numFaces()), false);
 
-        const auto findLocalFace = [&](std::size_t elemID, int faceID) -> std::size_t {
+    const auto findLocalFace = [&](std::size_t elemID,
+                                   int faceID,
+                                   std::size_t globalFaceID,
+                                   const char* side) -> std::size_t {
         const auto& faceIDs = triMesh_->elem(elemID)._faceID;
         const auto it = std::find(faceIDs.begin(), faceIDs.end(), faceID);
         return static_cast<std::size_t>(it - faceIDs.begin());
     };
+
+
 
     for (std::size_t faceID = 0; faceID < static_cast<std::size_t>(triMesh_->numFaces()); ++faceID) {
 
@@ -257,9 +376,15 @@ void FirstorderEuler::buildFacesFromTriangularMesh() {
         const auto& owners = faceOwners[faceID];
         
         const bool periodic = (periodicPartnerFace[faceID] != -1);
-        // const bool taggedPeriodic = (boundaryKindFromTitle(face._title, config_) == BoundaryKind::Periodic);
+        const bool taggedPeriodic = (boundaryKindFromTitle(face._title, config_) == BoundaryKind::Periodic);
+        if (taggedPeriodic && !periodic) {
+            throw std::runtime_error("Periodic boundary face was not paried" + face._title);
+        }
+
+        // IMPORTANT: don't process both faces of the periodic pair
         if (periodic) {
             const int partner = periodicPartnerFace[faceID];
+            if (partner < 0) throw std::runtime_error("Periodic face has no partner.");
             visitedFace[faceID] = true;
             visitedFace[static_cast<std::size_t>(partner)] = true;
         }
@@ -267,11 +392,17 @@ void FirstorderEuler::buildFacesFromTriangularMesh() {
         }
 
         const bool boundary = face.isBoundaryFace() && !periodic;
+
+        if (owners[0] < 0) {
+            throw std::runtime_error("Face has invalid left element index.");
+        }
+
         const std::size_t elemL = static_cast<std::size_t>(owners[0]);
-        const std::size_t localFaceL = findLocalFace(elemL, static_cast<int>(faceID));
+        const std::size_t localFaceL = findLocalFace(elemL, static_cast<int>(faceID), faceID, "left");
 
         if (boundary) {
-            const auto it = groupFromTitle.try_emplace(face._title, groupFromTitle.size()).first;
+            const auto [it, inserted] = groupFromTitle.try_emplace(face._title, groupFromTitle.size());
+            (void)inserted;
 
             BoundaryFace bf;
             bf.elem = elemL;
@@ -291,11 +422,17 @@ void FirstorderEuler::buildFacesFromTriangularMesh() {
         std::size_t localFaceR = 0;
         if (periodic) {
             const std::size_t periodicFaceID = static_cast<std::size_t>(periodicPartnerFace[faceID]);
+            if (periodicFaceID >= faceOwners.size() || faceOwners[periodicFaceID][0] < 0) {
+                throw std::runtime_error("Periodic face partner has invalid owner element.");
+            }
             elemR = static_cast<std::size_t>(faceOwners[periodicFaceID][0]);
-            localFaceR = findLocalFace(elemR, static_cast<int>(periodicFaceID));
+            localFaceR = findLocalFace(elemR, static_cast<int>(periodicFaceID), periodicFaceID, "right-periodic");
         } else {
+            if (owners[1] < 0) {
+                throw std::runtime_error("Interior face has invalid right element index.");
+            }
             elemR = static_cast<std::size_t>(owners[1]);
-            localFaceR = findLocalFace(elemR, static_cast<int>(faceID));
+            localFaceR = findLocalFace(elemR, static_cast<int>(faceID), faceID, "right-interior");
         }
 
         InteriorFace inf;
@@ -317,6 +454,10 @@ void FirstorderEuler::buildFacesFromTriangularMesh() {
 }
 
 void FirstorderEuler::computePerimeterFromMesh() {
+    if (!triMesh_) {
+        throw std::runtime_error("TriangularMesh must be initialized before computing perimeter.");
+    }
+
     perimeter_.assign(elements_.size(), 0.0);
     for (std::size_t elemID = 0; elemID < static_cast<std::size_t>(triMesh_->numElems()); ++elemID) {
         const auto& elem = triMesh_->elem(elemID);
@@ -326,13 +467,40 @@ void FirstorderEuler::computePerimeterFromMesh() {
     }
 }
 
+void FirstorderEuler::validateLoadedArrays() const {
+    if (nodes_.empty() || elements_.empty()) {
+        throw std::runtime_error("Mesh must contain nodes and elements.");
+    }
+    if (area_.size() != elements_.size()) {
+        throw std::runtime_error("TriangularMesh area count must equal number of elements.");
+    }
+
+    for (const auto& f : interiorFaces_) {
+        if (f.elemL >= elements_.size() || f.elemR >= elements_.size()) {
+            throw std::runtime_error("I2E element index out of range.");
+        }
+        if (f.faceL > 2 || f.faceR > 2) {
+            throw std::runtime_error("I2E local face index must be in {1,2,3} (0-based {0,1,2}).");
+        }
+    }
+
+    for (const auto& f : boundaryFaces_) {
+        if (f.elem >= elements_.size()) {
+            throw std::runtime_error("B2E element index out of range.");
+        }
+        if (f.localFace > 2) {
+            throw std::runtime_error("B2E local face index must be in {1,2,3} (0-based {0,1,2}).");
+        }
+    }
+}
+
 void FirstorderEuler::initUniformState() {
     const double M = config_.initialMach;
     const double g = config_.gamma;
     const double R = config_.gasConstant;
     const double p0 = config_.rho0 * config_.a0 * config_.a0 / g;
 
-    const double T0 = p0 / (config_.rho0 * R);
+    const double T0 = (config_.a0 * config_.a0) / (g * R);
     const double T = T0 / (1.0 + 0.5 * (g - 1.0) * M * M);
     const double p = p0 * std::pow(T / T0, g / (g - 1.0));
 
@@ -368,7 +536,10 @@ std::vector<FirstorderEuler::EdgeFluxContribution> FirstorderEuler::computeEdgeF
         if (dot2(nFace, dLR) < 0.0) {
             nFace = neg2(nFace);
         }
-        const Eigen::Vector2d n(nFace[0], nFace[1]);
+
+        const Vec2 nUnit = normalized(nFace);
+        const Eigen::Vector2d n(nUnit[0], nUnit[1]);
+
         const Conserved F = fromEigen((*flux)(toEigen(UL), toEigen(UR), config_.gamma, n));
 
         EdgeFluxContribution edge;
@@ -377,10 +548,12 @@ std::vector<FirstorderEuler::EdgeFluxContribution> FirstorderEuler::computeEdgeF
         edge.normal = nFace;          // store the *oriented* normal
         edge.edgeLength = f.length;
         edge.flux = F;
-        edge.spectralRadius = std::max(spectralRadius(UL, nFace, config_.gamma),
-                                    spectralRadius(UR, nFace, config_.gamma));
+        edge.spectralRadius = std::max(spectralRadius(UL, nUnit, config_.gamma),
+                                    spectralRadius(UR, nUnit, config_.gamma));
         edges.push_back(edge);
     }
+
+
 
     for (const auto& f : boundaryFaces_) {
         const Conserved& UL = U_.at(f.elem);
@@ -395,6 +568,8 @@ std::vector<FirstorderEuler::EdgeFluxContribution> FirstorderEuler::computeEdgeF
         BoundaryFace fFixed = f;
         fFixed.normal = nFace;
 
+        const Vec2 nUnit = normalized(nFace);
+
         // Direct boundary flux
         const Conserved Fb = computeBoundaryFluxFromModules(fFixed, UL, kind);
         EdgeFluxContribution edge;
@@ -405,7 +580,7 @@ std::vector<FirstorderEuler::EdgeFluxContribution> FirstorderEuler::computeEdgeF
         edge.flux = Fb;
 
         // Use local characteristic speed from interior state (safe)
-        edge.spectralRadius = spectralRadius(UL, nFace, config_.gamma);
+        edge.spectralRadius = spectralRadius(UL, nUnit, config_.gamma);
 
         edges.push_back(edge);
     }
@@ -417,8 +592,13 @@ FirstorderEuler::Conserved FirstorderEuler::computeBoundaryFluxFromModules(
     const Conserved& UL,
     BoundaryKind kind) const
 {
-    const Eigen::Vector4d up = toEigen(UL);
-    const Eigen::Vector2d n(f.normal[0], f.normal[1]);
+    Conserved Uphys = UL;
+    // enforcePhysicalState(Uphys, config_.gamma);
+
+    const Eigen::Vector4d up = toEigen(Uphys);
+
+    const Vec2 nUnit = normalized(f.normal);
+    const Eigen::Vector2d n(nUnit[0], nUnit[1]);
 
     std::unique_ptr<boundaryFlux> faceFlux;
     switch (kind) {
@@ -472,6 +652,11 @@ double FirstorderEuler::computeGlobalDtFromWaveSpeeds(const std::vector<EdgeFlux
     if (edges.empty()) {
         return 1e-12;
     }
+
+    // Consistent with PDF Eq. (3.4.3)-(3.4.5):
+    // d_i = 2*A_i/P_i,
+    // |s|_i = sum_e |s|_{i,e} * Delta l_{i,e} / P_i,
+    // global dt = min_i (CFL * d_i / |s|_i).
     std::vector<double> speedLenSum(area_.size(), 0.0);
     for (const auto& edge : edges) {
         const double contrib = std::abs(edge.spectralRadius) * edge.edgeLength;
@@ -501,11 +686,98 @@ double FirstorderEuler::computeGlobalDtFromWaveSpeeds(const std::vector<EdgeFlux
     return std::max(1e-12, dtMin);
 }
 
+std::vector<double> FirstorderEuler::computeLocalDtFromWaveSpeeds(const std::vector<EdgeFluxContribution>& edges) const {
+    std::vector<double> dt(area_.size(), 1e-3);
+    if (edges.empty()) {
+        return dt;
+    }
+
+    std::vector<double> edgeSpeedWeighted(area_.size(), 0.0);
+    for (const auto& edge : edges) {
+        const double s = std::abs(edge.spectralRadius) * edge.edgeLength;
+        if (!std::isfinite(s) || s <= 0.0) {
+            continue;
+        }
+        edgeSpeedWeighted[edge.ownerElem] += s;
+        if (edge.neighborElem != edge.ownerElem) {
+            edgeSpeedWeighted[edge.neighborElem] += s;
+        }
+    }
+
+    for (std::size_t i = 0; i < area_.size(); ++i) {
+        const double dchar = 2.0 * area_[i] / std::max(1e-12, perimeter_[i]);
+        const double dtMax = std::max(1e-8, config_.cfl * dchar);
+        const double dtRaw = 2.0 * area_[i] * config_.cfl / std::max(1e-12, edgeSpeedWeighted[i]);
+        dt[i] = std::max(1e-12, std::min(dtRaw, dtMax));
+    }
+    return dt;
+}
+
 void FirstorderEuler::updateStateGlobalDt(double dt) {
+    const int maxCuts = 10;
+    constexpr double maxRelativeEnergyChange = 0.25;
+
     for (std::size_t i = 0; i < U_.size(); ++i) {
-        const double scale = dt / area_[i];
-        for (std::size_t k = 0; k < 4; ++k) {
-            U_[i][k] -= scale * residual_[i][k];
+        double dtUse = dt;
+        Conserved Uold = U_[i];
+
+        for (int cut = 0; cut <= maxCuts; ++cut) {
+            Conserved Utry = Uold;
+            const double scale = dtUse / area_[i];
+            for (std::size_t k = 0; k < 4; ++k) {
+                Utry[k] -= scale * residual_[i][k];
+            }
+
+            const double oldE = std::max(1e-12, std::abs(Uold[3]));
+            const double relEnergyChange = std::abs(Utry[3] - Uold[3]) / oldE;
+            const bool energyStepOK = std::isfinite(relEnergyChange) && relEnergyChange <= maxRelativeEnergyChange;
+            const bool pressureStepOK = PressureAndInternalEnergyClip(Utry, Uold, config_.gamma);
+
+            if (energyStepOK && pressureStepOK) {
+                U_[i] = Utry;
+                break;
+            }
+
+            if (cut == maxCuts) {
+                U_[i] = Utry;
+                // enforcePhysicalState(U_[i], config_.gamma);
+            } else {
+                dtUse *= 0.5;
+            }
+        }
+    }
+}
+
+void FirstorderEuler::updateStateLocalDt(const std::vector<double>& dtLocal) {
+    const int maxCuts = 10;
+    constexpr double maxRelativeEnergyChange = 0.25;
+
+    for (std::size_t i = 0; i < U_.size(); ++i) {
+        double dtUse = dtLocal[i];
+        const Conserved Uold = U_[i];
+
+        for (int cut = 0; cut <= maxCuts; ++cut) {
+            Conserved Utry = Uold;
+            const double scale = dtUse / area_[i];
+            for (std::size_t k = 0; k < Utry.size(); ++k) {
+                Utry[k] -= scale * residual_[i][k];
+            }
+
+            const double oldE = std::max(1e-12, std::abs(Uold[3]));
+            const double relEnergyChange = std::abs(Utry[3] - Uold[3]) / oldE;
+            const bool energyStepOK = std::isfinite(relEnergyChange) && relEnergyChange <= maxRelativeEnergyChange;
+            const bool pressureStepOK = PressureAndInternalEnergyClip(Utry, Uold, config_.gamma);
+            if (energyStepOK && pressureStepOK) {
+                U_[i] = Utry;
+                break;
+            }
+
+            if (cut == maxCuts) {
+                U_[i] = Utry;
+                // enforcePhysicalState(U_[i], config_.gamma);
+            } else {
+                dtUse *= 0.5;
+            }
         }
     }
 }
@@ -531,6 +803,10 @@ double FirstorderEuler::l2Norm(const std::vector<Conserved>& values) {
 }
 
 void FirstorderEuler::writeSolutionVtk(const std::string& filePath) const {
+    if (nodes_.empty() || elements_.empty() || U_.size() != elements_.size()) {
+        throw std::runtime_error("Cannot export VTK: mesh/state arrays are not initialized.");
+    }
+
     const double g = config_.gamma;
     const double MInf = std::max(1e-8, config_.initialMach);
     const double pInf = (config_.rho0 * config_.a0 * config_.a0 / g)
@@ -538,6 +814,9 @@ void FirstorderEuler::writeSolutionVtk(const std::string& filePath) const {
     const double qInf = std::max(1e-12, 0.5 * pInf * g * MInf * MInf);
 
     std::ofstream out(filePath);
+    if (!out) {
+        throw std::runtime_error("Failed to open VTK output file: " + filePath);
+    }
 
     out << "# vtk DataFile Version 3.0\n";
     out << "FirstorderEuler solution\n";
@@ -605,8 +884,19 @@ void FirstorderEuler::advance(bool stopByTime) {
         double dtUsed = 0.0;
         std::vector<double> dtLocalBuffer;
         const std::vector<double>* dtLocalPtr = nullptr;
-        dtUsed = computeGlobalDtFromWaveSpeeds(edges);
-        updateStateGlobalDt(dtUsed);
+        if (config_.localTimeStepping) {
+            dtLocalBuffer = computeLocalDtFromWaveSpeeds(edges);
+            dtLocalPtr = &dtLocalBuffer;
+            dtUsed = dtLocalBuffer.empty() ? 0.0 : *std::min_element(dtLocalBuffer.begin(), dtLocalBuffer.end());
+            updateStateLocalDt(dtLocalBuffer);
+        } else {
+            dtUsed = computeGlobalDtFromWaveSpeeds(edges);
+            updateStateGlobalDt(dtUsed);
+        }
+
+        if (!std::isfinite(dtUsed) || dtUsed <= 0.0) {
+            throw std::runtime_error("Computed non-finite/invalid dt.");
+        }
 
         const double normR = l2Norm(residual_);
         if (!std::isfinite(normR)) {
@@ -646,6 +936,18 @@ void FirstorderEuler::runSteadyGlobal() {
     config_.localTimeStepping = false;
     resetMarchState();
     advance(false);
+}
+
+void FirstorderEuler::runSteadyLocal() {
+    config_.localTimeStepping = true;
+    resetMarchState();
+    advance(false);
+}
+
+void FirstorderEuler::runUnsteadyGlobal() {
+    config_.localTimeStepping = false;
+    resetMarchState();
+    advance(true);
 }
 
 void FirstorderEuler::resetMarchState() {

@@ -1,6 +1,8 @@
 #pragma once
 #include "boundaryFlux.hpp"
 #include <Eigen/Dense>
+#include <algorithm>
+#include <cmath>
 
 class outletFlux : public boundaryFlux {
 private:
@@ -15,51 +17,111 @@ public:
         double gamma,
         const Eigen::Vector2d& n
     ) const override {
-	double gm1 = gamma - 1;
+	// double gm1 = gamma - 1;
 	
-	// Safe Guard
-	constexpr double rhoFloor = 1e-10;
-	double rhoP = std::max(rhoFloor, UP(0));
+	// // Safe Guard
+	// constexpr double rhoFloor = 1e-10;
+	// double rhoP = std::max(rhoFloor, UP(0));
 
-	double uP = UP(1)/rhoP;
-	double vP = UP(2)/rhoP;
-	double rhoEP = UP(3);
+	// double uP = UP(1)/rhoP;
+	// double vP = UP(2)/rhoP;
+	// double rhoEP = UP(3);
 
-	// Safe Guard
-	constexpr double pFloor = 1e-10;
-	double pP = gm1*(rhoEP - 0.5*rhoP*(uP*uP + vP*vP));
-	pP = std::max(pFloor, pP);
+	// // Safe Guard
+	// constexpr double pFloor = 1e-10;
+	// double pP = gm1*(rhoEP - 0.5*rhoP*(uP*uP + vP*vP));
+	// pP = std::max(pFloor, pP);
 	
-	double SP = pP / std::pow(rhoP, gamma);    // entropy from interior
+	// double SP = pP / std::pow(rhoP, gamma);    // entropy from interior
 
-	double rhoB = std::pow(p0_/SP, 1/gamma);
-	rhoB = std::max(rhoFloor, rhoB);
-	double cB = std::sqrt(gamma*p0_/rhoB);
+	// double rhoB = std::pow(p0_/SP, 1/gamma);
+	// rhoB = std::max(rhoFloor, rhoB);
+	// double cB = std::sqrt(gamma*p0_/rhoB);
 
 
-	double uNP = uP*n(0) + vP*n(1);
-	double cP = std::sqrt(gamma*pP/rhoP);
-	double JP = uNP + 2*cP/gm1;
-	double uNB = JP - 2*cB/gm1;
-	double uB = uP - n(0)*(uP*n(0) + vP*n(1) - uNB);
-	double vB = vP - n(1)*(uP*n(0) + vP*n(1) - uNB);
-	double rhoEB = p0_/gm1 + 0.5*rhoB*(uB*uB + vB*vB);
+	// double uNP = uP*n(0) + vP*n(1);
+	// double cP = std::sqrt(gamma*pP/rhoP);
+	// double JP = uNP + 2*cP/gm1;
+	// double uNB = JP - 2*cB/gm1;
+	// double uB = uP - n(0)*(uP*n(0) + vP*n(1) - uNB);
+	// double vB = vP - n(1)*(uP*n(0) + vP*n(1) - uNB);
+	// double rhoEB = p0_/gm1 + 0.5*rhoB*(uB*uB + vB*vB);
 	
-	Eigen::Matrix<double, 4, 1> F;
+	// Eigen::Matrix<double, 4, 1> F;
 
-	if (std::sqrt(uB*uB + vB*vB)/cB < 1) {
-		F(0) = rhoB*(uB*n(0) + vB*n(1));
-		F(1) = (rhoB*uB*uB + p0_)*n(0) + rhoB*uB*vB*n(1);
-		F(2) = rhoB*uB*vB*n(0) + (rhoB*vB*vB + p0_)*n(1);
-		F(3) = uB*(rhoEB + p0_)*n(0) + vB*(rhoEB + p0_)*n(1);
-	}
-	else {
-		F(0) = rhoP*(uP*n(0) + vP*n(1));
-		F(1) = (rhoP*uP*uP + pP)*n(0) + rhoP*uP*vP*n(1);
-		F(2) = rhoP*uP*vP*n(0) + (rhoP*vP*vP + pP)*n(1);
-		F(3) = uP*(rhoEP + pP)*n(0) + vP*(rhoEP + pP)*n(1);
-	}
+	// const double unB = uB*n(0) + vB*n(1);
+	// if (std::abs(unB)/cB < 1.0) {
+	// 	F(0) = rhoB*(uB*n(0) + vB*n(1));
+	// 	F(1) = (rhoB*uB*uB + p0_)*n(0) + rhoB*uB*vB*n(1);
+	// 	F(2) = rhoB*uB*vB*n(0) + (rhoB*vB*vB + p0_)*n(1);
+	// 	F(3) = uB*(rhoEB + p0_)*n(0) + vB*(rhoEB + p0_)*n(1);
+	// }
+	// else {
+	// 	F(0) = rhoP*(uP*n(0) + vP*n(1));
+	// 	F(1) = (rhoP*uP*uP + pP)*n(0) + rhoP*uP*vP*n(1);
+	// 	F(2) = rhoP*uP*vP*n(0) + (rhoP*vP*vP + pP)*n(1);
+	// 	F(3) = uP*(rhoEP + pP)*n(0) + vP*(rhoEP + pP)*n(1);
+	// }
 	
+		const double gm1 = gamma - 1.0;
+
+        // Safe Guard
+        constexpr double rhoFloor = 1e-10;
+        constexpr double pFloor = 1e-10;
+        double rhoP = std::max(rhoFloor, UP(0));
+
+        const double uP = UP(1) / rhoP;
+        const double vP = UP(2) / rhoP;
+        const double rhoEP = UP(3);
+
+        double pP = gm1 * (rhoEP - 0.5 * rhoP * (uP * uP + vP * vP));
+        pP = std::max(pFloor, pP);
+
+        const double uNP = uP * n(0) + vP * n(1);
+        const double cP = std::sqrt(gamma * pP / rhoP);
+
+        Eigen::Matrix<double, 4, 1> F;
+
+        // 1) Backflow robustness: do not apply outflow pressure BC when inflow occurs.
+        if (uNP < 0.0) {
+            const double uB = uP - uNP * n(0);
+            const double vB = vP - uNP * n(1);
+            const double rhoEB = pP / gm1 + 0.5 * rhoP * (uB * uB + vB * vB);
+
+            F(0) = rhoP * (uB * n(0) + vB * n(1));
+            F(1) = (rhoP * uB * uB + pP) * n(0) + rhoP * uB * vB * n(1);
+            F(2) = rhoP * uB * vB * n(0) + (rhoP * vB * vB + pP) * n(1);
+            F(3) = uB * (rhoEB + pP) * n(0) + vB * (rhoEB + pP) * n(1);
+            return F;
+        }
+
+        // 2) Supersonic outflow: extrapolate interior state.
+        if (uNP >= cP) {
+            F(0) = rhoP * (uP * n(0) + vP * n(1));
+            F(1) = (rhoP * uP * uP + pP) * n(0) + rhoP * uP * vP * n(1);
+            F(2) = rhoP * uP * vP * n(0) + (rhoP * vP * vP + pP) * n(1);
+            F(3) = uP * (rhoEP + pP) * n(0) + vP * (rhoEP + pP) * n(1);
+            return F;
+        }
+
+        // 3) Subsonic outflow with specified static pressure p0_.
+        double SP = pP / std::pow(rhoP, gamma); // entropy from interior
+
+        double rhoB = std::pow(p0_ / SP, 1.0 / gamma);
+        rhoB = std::max(rhoFloor, rhoB);
+        const double cB = std::sqrt(gamma * p0_ / rhoB);
+
+        const double JP = uNP + 2.0 * cP / gm1;
+        const double uNB = JP - 2.0 * cB / gm1;
+        const double uB = uP - n(0) * (uP * n(0) + vP * n(1) - uNB);
+        const double vB = vP - n(1) * (uP * n(0) + vP * n(1) - uNB);
+        const double rhoEB = p0_ / gm1 + 0.5 * rhoB * (uB * uB + vB * vB);
+
+        F(0) = rhoB * (uB * n(0) + vB * n(1));
+        F(1) = (rhoB * uB * uB + p0_) * n(0) + rhoB * uB * vB * n(1);
+        F(2) = rhoB * uB * vB * n(0) + (rhoB * vB * vB + p0_) * n(1);
+        F(3) = uB * (rhoEB + p0_) * n(0) + vB * (rhoEB + p0_) * n(1);
+
         return F;
     }
 };

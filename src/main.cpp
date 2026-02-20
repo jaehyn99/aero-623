@@ -21,9 +21,9 @@ int main(int argc, char** argv) {
     std::string mode = "steady-local";
     std::string meshFile;
     std::string meshPrefix = "projects/Project-1/mesh_refined_2394";
-    std::size_t saveEvery = 10;
-    std::size_t statusEvery = 10;
-    std::size_t debugEvery = 10;
+    std::size_t saveEvery = 1000;
+    std::size_t statusEvery = 1000;
+    std::size_t debugEvery = 1000;
 
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
@@ -64,7 +64,7 @@ int main(int argc, char** argv) {
             cfg.finalTime = 1e12; // Steady pseudo-time: stop by residual/maxIterations.
         } else if (mode == "steady-local") {
             cfg.localTimeStepping = true;
-            cfg.cfl = 0.02;
+            cfg.cfl = 0.1;
             cfg.finalTime = 1e12; // Steady pseudo-time: stop by residual/maxIterations.
         } else if (mode == "unsteady-global") {
             cfg.localTimeStepping = false;
@@ -86,12 +86,12 @@ int main(int argc, char** argv) {
         solver.initUniformState();
 
         if (mode == "steady-global") {
-            solver.runSteadyGlobal();
-        } else if (mode == "steady-local") {
-            solver.runSteadyLocal();
-        } else {
-            solver.runUnsteadyGlobal();
-        }
+            solver.runSteadyGlobal();}
+        // } else if (mode == "steady-local") {
+        //     solver.runSteadyLocal();
+        // } else {
+        //     solver.runUnsteadyGlobal();
+        // }
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << "\n";
         return 1;
