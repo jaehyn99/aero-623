@@ -86,7 +86,7 @@ int main() {
     do{
         std::cout << "Enter solver mode (0 = unsteady, 1 = steady): ";
         std::cin >> steadyState;
-    } while (steadyState != 0 && timeOrder != 1);
+    } while (steadyState != 0 && steadyState != 1);
     if (steadyState == 1) solver = std::make_unique<FVSteadySolver>(residual, integrator, stepper);
     else{
         inlet->setTransient(true);
