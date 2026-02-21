@@ -1,10 +1,11 @@
 #pragma once
 #include "boundaryFlux.hpp"
 #include <Eigen/Dense>
+#include "FluxResult.hpp"
 
 class wallFlux : public boundaryFlux {
 public:
-    Eigen::Vector4d operator()(
+    FluxResult operator()(
         const Eigen::Vector4d& UP,
         double gamma,
         const Eigen::Vector2d& n
@@ -28,6 +29,6 @@ public:
 	F(1) = pB*n(0);
 	F(2) = pB*n(1);
 	F(3) = 0.0;
-        return F;
+        return {F, cP};
     }
 };

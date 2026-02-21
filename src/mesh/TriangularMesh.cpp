@@ -201,10 +201,8 @@ Eigen::Vector2d TriangularMesh::normal(std::size_t elemID, std::size_t localFace
     const Face& face = _faces[faceID];
 
     Eigen::Vector2d n = face._normal;
-    if (face._elemID[1] == elemID) return -n; // on element R, revert the normal vector
-    if (face._periodicElemID == -1) return n; // on element L and not periodic, normal is correct
-    if (int(elemID) < face._periodicElemID) return n; // still correctly pointing from L to R
-    return -n;
+    if (face._elemID[1] == int(elemID)) return -n; // on element R, revert the normal vector
+    return n; // on element L or on a boundary, periodic or not
 }
 
 void TriangularMesh::writeGri(const std::string& fileName) const noexcept{

@@ -2,10 +2,11 @@
 #include "numericalFlux.hpp"
 #include <Eigen/Dense>
 #include <cmath>
+#include "FluxResult.hpp"
 
 class HLLEFlux : public numericalFlux {
 public:
-    Eigen::Vector4d operator()(const Eigen::Vector4d& UL,
+    FluxResult operator()(const Eigen::Vector4d& UL,
                      const Eigen::Vector4d& UR,
                      double gamma, const Eigen::Vector2d& n) const override
     {
@@ -60,14 +61,17 @@ public:
         double SL = vAvg - dAvg;
         double SR = vAvg + dAvg;
 
-        if (SL >= 0.0) return FL; // Want to do masking later
-        if (SR <= 0.0) return FR;
+        double lambdaMax = std::max(std::abs(SL), std::abs(SR));
+
+        if (SL >= 0.0) return {FL, lambdaMax};
+        if (SR <= 0.0) return {FR, lambdaMax};
+
 
 	F(0) = (SR*FL(0) - SL*FR(0) + SL*SR*(UR(0) - UL(0)))/(SR - SL);
 	F(1) = (SR*FL(1) - SL*FR(1) + SL*SR*(UR(1) - UL(1)))/(SR - SL);
 	F(2) = (SR*FL(2) - SL*FR(2) + SL*SR*(UR(2) - UL(2)))/(SR - SL);
 	F(3) = (SR*FL(3) - SL*FR(3) + SL*SR*(UR(3) - UL(3)))/(SR - SL);
 
-        return F;
+        return {F, lambdaMax};
     }
 };

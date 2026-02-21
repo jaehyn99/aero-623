@@ -1,6 +1,7 @@
 #pragma once
 #include "boundaryFlux.hpp"
 #include <Eigen/Dense>
+#include "FluxResult.hpp"
 
 class outletFlux : public boundaryFlux {
 private:
@@ -10,7 +11,7 @@ public:
     outletFlux(double p0)
         : p0_(p0) {}
 
-    Eigen::Vector4d operator()(
+    FluxResult operator()(
         const Eigen::Vector4d& UP,
         double gamma,
         const Eigen::Vector2d& n
@@ -46,7 +47,18 @@ public:
 		F(2) = rhoP*uP*vP*n(0) + (rhoP*vP*vP + pP)*n(1);
 		F(3) = uP*(rhoEP + pP)*n(0) + vP*(rhoEP + pP)*n(1);
 	}
+
+	double lambdaMax;
+
+	if (std::sqrt(uB*uB + vB*vB)/cB < 1) {
+		double unB = uB*n(0) + vB*n(1);
+		lambdaMax = std::abs(unB) + cB;
+	}
+	else {
+		double unP = uP*n(0) + vP*n(1);
+		lambdaMax = std::abs(unP) + cP;
+	}
 	
-        return F;
+        return {F, lambdaMax};
     }
 };

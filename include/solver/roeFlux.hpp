@@ -2,10 +2,11 @@
 #include "numericalFlux.hpp"
 #include <Eigen/Dense>
 #include <cmath>
+#include "FluxResult.hpp"
 
 class RoeFlux : public numericalFlux {
 public:
-    Eigen::Vector4d operator()(const Eigen::Vector4d& UL,
+    FluxResult operator()(const Eigen::Vector4d& UL,
                      const Eigen::Vector4d& UR,
                      double gamma, const Eigen::Vector2d& n) const override
     {
@@ -63,7 +64,7 @@ public:
 	Eigen::Matrix<double, 3, 1> l;
 	l(0) = ucp + ci;
 	l(1) = ucp - ci;
-        l(2) = ucp;
+    l(2) = ucp;
 
 	double epsilon = 0.1*ci;
 
@@ -74,6 +75,8 @@ public:
         		l(ii) = std::abs(l(ii));
     		}
 	}
+
+	double lambdaMax = std::max({std::abs(l(0)), std::abs(l(1)), std::abs(l(2))});
 
 	double s1 = 0.5*(l(0) + l(1));
 	double s2 = 0.5*(l(0) - l(1));
@@ -89,6 +92,6 @@ public:
 	F(2) = 0.5*(FL(2) + FR(2)) - 0.5*(l(2)*du(2) + C1*vi + C2*n(1));
 	F(3) = 0.5*(FL(3) + FR(3)) - 0.5*(l(2)*du(3) + C1*Hi + C2*ucp);
 
-        return F;
+        return {F, lambdaMax};
     }
 };
