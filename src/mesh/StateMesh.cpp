@@ -57,6 +57,7 @@ StateMesh::StateMesh(std::shared_ptr<TriangularMesh> spatialMesh, std::vector<st
     _gradientMethod(nullptr)
 {} 
 
-void StateMesh::computeGradient(){
-    if (_gradientMethod) _gradient = _gradientMethod->computeGradient(*this);
+std::vector<Eigen::Matrix<double,4,2>> StateMesh::computeGradient() const{
+    if (_gradientMethod) return _gradientMethod->computeGradient(*this);
+    throw std::invalid_argument("ERROR: No gradient computing function provided.");
 }

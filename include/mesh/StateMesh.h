@@ -42,9 +42,10 @@ class StateMesh{
     std::shared_ptr<BoundaryCondition> bc(std::size_t i) const noexcept{ return _bc[i]; }
 
     void setGradientMethod(std::shared_ptr<FVGradient> gradientMethod){ _gradientMethod = gradientMethod; };
-    void computeGradient(); // computes the gradient using the specified strategy and stores them in _gradient for later use in second-order residuals
-    std::vector<Eigen::Matrix<double,4,2>>& getGradient() noexcept{ return _gradient; }
-    const std::vector<Eigen::Matrix<double,4,2>>& getGradient() const noexcept{ return _gradient; }
+    std::vector<Eigen::Matrix<double,4,2>> computeGradient() const;
+    // void computeGradient(); // computes the gradient using the specified strategy and stores them in _gradient for later use in second-order residuals
+    // std::vector<Eigen::Matrix<double,4,2>>& getGradient() noexcept{ return _gradient; }
+    // const std::vector<Eigen::Matrix<double,4,2>>& getGradient() const noexcept{ return _gradient; }
 
     protected:
     std::shared_ptr<TriangularMesh> _spatialMesh;

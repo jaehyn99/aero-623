@@ -27,7 +27,7 @@ static inline Eigen::Vector4d reconstructToFace(
 
 Eigen::MatrixXd FVAdvectionSecondOrder::computeResidual(const StateMesh& u) const
 {
-    auto& grad = u.getGradient();
+    auto grad = u.computeGradient();
     if (grad.size() != static_cast<std::size_t>(u.cellCount()))
         throw std::runtime_error("Gradient size mismatch with cellCount()");
 

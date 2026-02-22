@@ -26,7 +26,7 @@ void FVSteadySolver::solve(StateMesh& u) const{
         Eigen::ArrayXd dt = _stepper->dt(u);
         _integrator->integrate(func, u.matrix(), 0, dt);
 
-        u.computeGradient();
+        //u.computeGradient();
         norm = func(0, u.matrix()).lpNorm<1>();
         std::cout << norm << std::endl;
         _l1norm.push_back(norm);

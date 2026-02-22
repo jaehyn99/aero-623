@@ -25,12 +25,14 @@ int main() {
     std::shared_ptr<TriangularMesh> mesh;
     std::string meshName;
     do{
-        std::cout << "Enter mesh name (\"coarse\" or \"fine\"): ";
+        std::cout << "Enter mesh name (\"coarse\", \"fine\", \"finer\", or \"finest\"): ";
         std::cin >> meshName;
         std::transform(meshName.begin(), meshName.end(), meshName.begin(), [](unsigned char c){ return std::tolower(c); });
-    } while (meshName != "coarse" && meshName != "fine");
+    } while (meshName != "coarse" && meshName != "fine" && meshName != "finer" && meshName != "finest");
     if (meshName == "coarse") mesh = std::make_shared<TriangularMesh>("projects/Project-2/mesh_refined_2394.gri");
-    else mesh = std::make_shared<TriangularMesh>("projects/Project-2/meshGlobalRefined1.gri");
+    else if (meshName == "fine") mesh = std::make_shared<TriangularMesh>("projects/Project-2/meshGlobalRefined1.gri");
+    else if (meshName == "finer") mesh = std::make_shared<TriangularMesh>("projects/Project-2/meshGlobalRefined2.gri");
+    else mesh = std::make_shared<TriangularMesh>("projects/Project-2/meshGlobalRefined3.gri");
 
     // Inlet conditions
     double gamma = 1.4;
@@ -109,39 +111,44 @@ int main() {
         solver = std::make_unique<FVUnSteadySolver>(residual, integrator, stepper, saveEveryNIterations, maxIterations);
     }
 
-    solver->solve(states);
-    std::vector<Eigen::MatrixXd> results = solver->getResult(); // size = 1 if steady, more than 1 if unsteady
-    std::vector<double> l1norm = solver->getNorm();
+    try{
+        solver->solve(states);
+        std::vector<Eigen::MatrixXd> results = solver->getResult(); // size = 1 if steady, more than 1 if unsteady
+        std::vector<double> l1norm = solver->getNorm();
 
-    std::vector<std::size_t> iter;
-    if (steadyState == 1) iter = {0};
-    else{
-        double t0 = 330;
-        double dt = 0.045; // time steps
-        std::size_t firstIter = t0/dt/saveEveryNIterations - 1;
-        iter = {firstIter, firstIter+1, firstIter+2, firstIter+3};
-    }
+        std::vector<std::size_t> iter;
+        if (steadyState == 1) iter = {0};
+        else{
+            double t0 = 330;
+            double dt = 0.045; // time steps
+            std::size_t firstIter = t0/dt/saveEveryNIterations - 1;
+            iter = {firstIter, firstIter+1, firstIter+2, firstIter+3};
+        }
 
-    std::ofstream file;
-    std::string resultFilePath = "projects/Project-2/";
-    resultFilePath += meshName + "_mesh_";
-    resultFilePath += (steadyState == 0) ? "unsteady_" : "steady_";
-    resultFilePath += (FVOrder == 1) ? "firstorder_" : "secondorder_";
-    resultFilePath += (timeOrder == 2) ? "RK2_" : "RK3_";
-    resultFilePath += fluxName;
-    
-    file.open(resultFilePath + "_norm.txt");
-    for (auto norm: l1norm) file << norm << "\n";
-    file.close();
-
-    for (auto it: iter){
-        if (steadyState == 0){
-            std::string resultFilePathAtIter = resultFilePath + "_t_" + std::to_string(it*0.045*saveEveryNIterations);
-            file.open(resultFilePathAtIter + ".txt");
-        } else file.open(resultFilePath + ".txt");
-        for (Eigen::Index e = 0; e < states.cellCount(); e++) file << results[it].col(e).transpose() << "\n";
+        std::ofstream file;
+        std::string resultFilePath = "projects/Project-2/";
+        resultFilePath += meshName + "_mesh_";
+        resultFilePath += (steadyState == 0) ? "unsteady_" : "steady_";
+        resultFilePath += (FVOrder == 1) ? "firstorder_" : "secondorder_";
+        resultFilePath += (timeOrder == 2) ? "RK2_" : "RK3_";
+        resultFilePath += fluxName;
+        
+        file.open(resultFilePath + "_norm.txt");
+        for (auto norm: l1norm) file << norm << "\n";
         file.close();
-    }
 
-    return 0;
+        for (auto it: iter){
+            if (steadyState == 0){
+                std::string resultFilePathAtIter = resultFilePath + "_t_" + std::to_string(it*0.045*saveEveryNIterations);
+                file.open(resultFilePathAtIter + ".txt");
+            } else file.open(resultFilePath + ".txt");
+            for (Eigen::Index e = 0; e < states.cellCount(); e++) file << results[it].col(e).transpose() << "\n";
+            file.close();
+        }
+
+        return 0;
+    } catch (std::runtime_error& ex){
+        std::ofstream f("debug.txt");
+
+    }
 }
