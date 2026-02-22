@@ -1,6 +1,8 @@
 #include "InletBC.h"
 #include <iostream>
 
+
+
 InletBC::InletBC(double rho0, double a0, double alpha, double gamma, bool transient):
     _rho0(rho0),
 	_rhoTrans(rho0),

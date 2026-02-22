@@ -56,6 +56,7 @@ def plotmesh(Mesh, fname):
 def plotstate(Mesh, U, p, field, frange, fname):
     V = Mesh['V']; E = Mesh['E']; BE = Mesh['BE']
     f = plt.figure(figsize=(12,12))
+    plt.subplots_adjust(left=0, right=1, bottom=0, top=1)
     F = getField(U, field)
     if (p == 0):
         plt.tripcolor(V[:,0], V[:,1], triangles=E, facecolors=F, shading='flat')

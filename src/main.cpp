@@ -47,8 +47,8 @@ int main() {
     // Initialize the state mesh
     StateMesh states(mesh, bc);
     states.state(0).fill(rho0);
-    states.state(1).fill(rho0*M*a0);
-    states.state(2).fill(0);//(rho0*M*a0*std::sin(alpha));
+    states.state(1).fill(rho0*M*a0*std::cos(alpha));
+    states.state(2).fill(rho0*M*a0*std::sin(alpha));
     states.state(3).fill(p0/(gamma-1) + 0.5*rho0*M*M*a0*a0);
 
     // Solver
@@ -83,6 +83,7 @@ int main() {
     std::shared_ptr<TimeStepper> stepper = std::make_shared<LocalTimeStepper>(1, gamma, flux);
     std::unique_ptr<FVSolver> solver;
     int steadyState;
+    int saveEveryNIterations, maxIterations;
     do{
         std::cout << "Enter solver mode (0 = unsteady, 1 = steady): ";
         std::cin >> steadyState;
@@ -90,7 +91,6 @@ int main() {
     if (steadyState == 1) solver = std::make_unique<FVSteadySolver>(residual, integrator, stepper);
     else{
         inlet->setTransient(true);
-        int saveEveryNIterations, maxIterations;
         do{
             std::cout << "Enter the frequency (after every how many iterations) that data are saved: ";
             std::cin >> saveEveryNIterations;
@@ -106,20 +106,35 @@ int main() {
     std::vector<Eigen::MatrixXd> results = solver->getResult(); // size = 1 if steady, more than 1 if unsteady
     std::vector<double> l1norm = solver->getNorm();
 
-    std::size_t iter = 0; // or at whatever iteration you want to get data from
+    std::vector<std::size_t> iter;
+    if (steadyState == 1) iter = {0};
+    else{
+        double t0 = 330;
+        double dt = 0.045; // time steps
+        std::size_t firstIter = t0/dt/saveEveryNIterations - 1;
+        iter = {firstIter, firstIter+1, firstIter+2};
+    }
+
+    std::ofstream file;
     std::string resultFilePath = "projects/Project-2/";
     resultFilePath += meshName + "_mesh_";
     resultFilePath += (steadyState == 0) ? "unsteady_" : "steady_";
     resultFilePath += (FVOrder == 1) ? "firstorder_" : "secondorder_";
     resultFilePath += (timeOrder == 2) ? "RK2_" : "RK3_";
     resultFilePath += fluxName;
-    std::ofstream file(resultFilePath + ".txt");
-    for (Eigen::Index e = 0; e < states.cellCount(); e++) file << results[iter].col(e).transpose() << "\n";
-    file.close();
-
+    
     file.open(resultFilePath + "_norm.txt");
     for (auto norm: l1norm) file << norm << "\n";
     file.close();
+
+    for (auto it: iter){
+        if (steadyState == 0){
+            std::string resultFilePathAtIter = resultFilePath + "_t_" + std::to_string(it*0.045*saveEveryNIterations);
+            file.open(resultFilePathAtIter + ".txt");
+        } else file.open(resultFilePath + ".txt");
+        for (Eigen::Index e = 0; e < states.cellCount(); e++) file << results[it].col(e).transpose() << "\n";
+        file.close();
+    }
 
     return 0;
 }

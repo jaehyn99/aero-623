@@ -2,6 +2,10 @@
 #include "InletBC.h"
 #include "OutletBC.h"
 
+InletOutletBC::InletOutletBC(InletOutletBC&&) = default;
+InletOutletBC& InletOutletBC::operator=(InletOutletBC&&) = default;
+InletOutletBC::~InletOutletBC() = default;
+
 InletOutletBC::InletOutletBC(double rho0, double a0, double alpha, double pB, double gamma, bool transient):
     _inlet(std::make_unique<InletBC>(rho0, a0, alpha, gamma, transient)),
     _outlet(std::make_unique<OutletBC>(pB, gamma))
