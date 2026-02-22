@@ -1,4 +1,4 @@
-#include "TriangularMesh.h"
+#include "mesh/TriangularMesh.h"
 #include <algorithm>
 #include <deque>
 #include <fstream>

@@ -5,12 +5,14 @@
 
 class BoundaryCondition;
 class TriangularMesh;
+class FVGradient;
+
 class StateMesh{
     public:
     // Constructs with the entire state matrix
-    StateMesh(std::shared_ptr<TriangularMesh>, std::vector<std::shared_ptr<BoundaryCondition>>&, const Eigen::MatrixXd&);
-    StateMesh(std::shared_ptr<TriangularMesh>, std::vector<std::shared_ptr<BoundaryCondition>>&, Eigen::MatrixXd&&);
-    StateMesh(std::shared_ptr<TriangularMesh>, std::vector<std::shared_ptr<BoundaryCondition>>&, Eigen::Index=4, double=1.0);
+    StateMesh(std::shared_ptr<TriangularMesh>, std::vector<std::shared_ptr<BoundaryCondition>>&, const Eigen::MatrixXd&, std::shared_ptr<FVGradient> =nullptr);
+    StateMesh(std::shared_ptr<TriangularMesh>, std::vector<std::shared_ptr<BoundaryCondition>>&, Eigen::MatrixXd&&, std::shared_ptr<FVGradient> =nullptr);
+    StateMesh(std::shared_ptr<TriangularMesh>, std::vector<std::shared_ptr<BoundaryCondition>>&, Eigen::Index=4, double=1.0, std::shared_ptr<FVGradient> =nullptr);
     
     Eigen::Index size() const noexcept{ return _stateMesh.size(); }
     Eigen::Index cellCount() const noexcept{ return _stateMesh.cols(); }
@@ -39,10 +41,17 @@ class StateMesh{
     // Reference to the underlying boundary condition
     std::shared_ptr<BoundaryCondition> bc(std::size_t i) const noexcept{ return _bc[i]; }
 
+    void setGradientMethod(std::shared_ptr<FVGradient> gradientMethod){ _gradientMethod = gradientMethod; };
+    void computeGradient(); // computes the gradient using the specified strategy and stores them in _gradient for later use in second-order residuals
+    std::vector<Eigen::Matrix<double,4,2>>& getGradient() noexcept{ return _gradient; }
+    const std::vector<Eigen::Matrix<double,4,2>>& getGradient() const noexcept{ return _gradient; }
+
     protected:
     std::shared_ptr<TriangularMesh> _spatialMesh;
     std::vector<std::shared_ptr<BoundaryCondition>> _bc; // should store the BCs in the order the non-periodic boundaries are listed in the input .GRI file
     Eigen::MatrixXd _stateMesh;
+    std::vector<Eigen::Matrix<double,4,2>> _gradient; // precomputed gradient for the current state, to be used in second-order residuals
+    std::shared_ptr<FVGradient> _gradientMethod; // strategy for computing gradient, to be set by the user before calling computeGradient()
 };
 
 #endif

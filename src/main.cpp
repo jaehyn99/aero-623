@@ -1,11 +1,14 @@
+// src/main.cpp
 #include <iostream>
 #include <fstream>
 
 #include "Constants.h"
 #include "FVAdvectionFirstOrder.h"
+#include "FVAdvectionSecondOrder.h"
 #include "FVSteadySolver.h"
 #include "FVUnsteadySolver.h"
 #include "HLLEFlux.h"
+#include "HybridWalkPNGrad.h"
 #include "InletBC.h"
 #include "InletOutletBC.h"
 #include "InviscidWallBC.h"
@@ -69,8 +72,12 @@ int main() {
         std::cin >> FVOrder;
     } while (FVOrder != 1 && FVOrder != 2);
     if (FVOrder == 1) residual = std::make_shared<FVAdvectionFirstOrder>(flux);
-    // else residual = std::make_shared<FVAdvectionSecondOrder>(flux);
-
+    else{
+        states.setGradientMethod(std::make_shared<HybridWalkPNGrad>());
+        states.computeGradient();
+        residual = std::make_shared<FVAdvectionSecondOrder>(flux);
+    }
+    
     std::shared_ptr<TimeIntegrator> integrator;
     int timeOrder;
     do{
