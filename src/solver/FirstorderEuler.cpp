@@ -272,7 +272,6 @@ void FirstorderEuler::buildFacesFromTriangularMesh() {
 
         if (boundary) {
             const auto it = groupFromTitle.try_emplace(face._title, groupFromTitle.size()).first;
-
             BoundaryFace bf;
             bf.elem = elemL;
             bf.localFace = localFaceL;
