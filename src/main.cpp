@@ -112,7 +112,7 @@ int main() {
         double t0 = 330;
         double dt = 0.045; // time steps
         std::size_t firstIter = t0/dt/saveEveryNIterations - 1;
-        iter = {firstIter, firstIter+1, firstIter+2};
+        iter = {firstIter, firstIter+1, firstIter+2, firstIter+3};
     }
 
     std::ofstream file;
