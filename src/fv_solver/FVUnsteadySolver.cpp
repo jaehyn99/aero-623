@@ -40,7 +40,6 @@ void FVUnSteadySolver::solve(StateMesh& u) const{
         _integrator->integrate(func, u.matrix(), t, dt);
         t += dt;
 
-        u.computeGradient();
         norm = func(t, u.matrix()).lpNorm<1>();      
         _l1norm.push_back(norm);
         if (iter % _saveEveryNIterations == 0) _result.emplace_back(u.matrix());

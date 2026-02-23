@@ -1,4 +1,5 @@
 #include "FVAdvectionSecondOrder.h"
+#include "BJLimiter.h"
 #include "InletBC.h"
 #include "InletOutletBC.h"
 #include "FVFlux.h"
@@ -28,6 +29,7 @@ static inline Eigen::Vector4d reconstructToFace(
 Eigen::MatrixXd FVAdvectionSecondOrder::computeResidual(const StateMesh& u) const
 {
     auto grad = u.computeGradient();
+    if (_limiter) grad = BJLimiter(grad, u);
     if (grad.size() != static_cast<std::size_t>(u.cellCount()))
         throw std::runtime_error("Gradient size mismatch with cellCount()");
 

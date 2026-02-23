@@ -28,7 +28,6 @@ void FVSteadySolver::solve(StateMesh& u) const{
 
         //u.computeGradient();
         norm = func(0, u.matrix()).lpNorm<1>();
-        std::cout << norm << std::endl;
         _l1norm.push_back(norm);
         isConverged = norm/_l1norm.front() <= _tol;
     }
