@@ -56,99 +56,107 @@ int main() {
     states.state(2).fill(rho0*M*a0*std::sin(alpha));
     states.state(3).fill(p0/(gamma-1) + 0.5*rho0*M*M*a0*a0);
 
-    // Solver
-    std::shared_ptr<FVFlux> flux;
-    std::string fluxName;
-    do{
-        std::cout << "Enter flux name (\"roe\" or \"hlle\"): ";
-        std::cin >> fluxName;
-        std::transform(fluxName.begin(), fluxName.end(), fluxName.begin(), [](unsigned char c){ return std::tolower(c); });
-    } while (fluxName != "roe" && fluxName != "hlle");
-    if (fluxName == "roe") flux = std::make_shared<RoeFlux>(gamma);
-    else flux = std::make_shared<HLLEFlux>(gamma);
-
-    std::shared_ptr<FVResidual> residual;
-    int FVOrder;
-    do{
-        std::cout << "Enter finite-volume order of accuracy (1 or 2): ";
-        std::cin >> FVOrder;
-    } while (FVOrder != 1 && FVOrder != 2);
-    if (FVOrder == 1) residual = std::make_shared<FVAdvectionFirstOrder>(flux);
-    else{
-        states.setGradientMethod(std::make_shared<HybridWalkPNGrad>());
-        states.computeGradient();
-        residual = std::make_shared<FVAdvectionSecondOrder>(flux);
+    states.setGradientMethod(std::make_shared<HybridWalkPNGrad>());
+    auto grad = states.computeGradient();
+    double min = 1000000;
+    for (auto g: grad){
+        if (g.array().minCoeff() < min) min = g.array().minCoeff();
     }
+    std::cout << min << std::endl;
+
+    // // Solver
+    // std::shared_ptr<FVFlux> flux;
+    // std::string fluxName;
+    // do{
+    //     std::cout << "Enter flux name (\"roe\" or \"hlle\"): ";
+    //     std::cin >> fluxName;
+    //     std::transform(fluxName.begin(), fluxName.end(), fluxName.begin(), [](unsigned char c){ return std::tolower(c); });
+    // } while (fluxName != "roe" && fluxName != "hlle");
+    // if (fluxName == "roe") flux = std::make_shared<RoeFlux>(gamma);
+    // else flux = std::make_shared<HLLEFlux>(gamma);
+
+    // std::shared_ptr<FVResidual> residual;
+    // int FVOrder;
+    // do{
+    //     std::cout << "Enter finite-volume order of accuracy (1 or 2): ";
+    //     std::cin >> FVOrder;
+    // } while (FVOrder != 1 && FVOrder != 2);
+    // if (FVOrder == 1) residual = std::make_shared<FVAdvectionFirstOrder>(flux);
+    // else{
+    //     states.setGradientMethod(std::make_shared<HybridWalkPNGrad>());
+    //     states.computeGradient();
+    //     residual = std::make_shared<FVAdvectionSecondOrder>(flux);
+    // }
     
-    std::shared_ptr<TimeIntegrator> integrator;
-    int timeOrder;
-    do{
-        std::cout << "Enter time integration order of accuracy (2 or 3): ";
-        std::cin >> timeOrder;    
-    } while (timeOrder != 2 && timeOrder != 3);
-    if (timeOrder == 2) integrator = std::make_shared<SSP_RK2>();
-    else integrator = std::make_shared<SSP_RK3>();
+    // std::shared_ptr<TimeIntegrator> integrator;
+    // int timeOrder;
+    // do{
+    //     std::cout << "Enter time integration order of accuracy (2 or 3): ";
+    //     std::cin >> timeOrder;    
+    // } while (timeOrder != 2 && timeOrder != 3);
+    // if (timeOrder == 2) integrator = std::make_shared<SSP_RK2>();
+    // else integrator = std::make_shared<SSP_RK3>();
 
-    std::shared_ptr<TimeStepper> stepper = std::make_shared<LocalTimeStepper>(1, gamma, flux);
-    std::unique_ptr<FVSolver> solver;
-    int steadyState;
-    int saveEveryNIterations, maxIterations;
-    do{
-        std::cout << "Enter solver mode (0 = unsteady, 1 = steady): ";
-        std::cin >> steadyState;
-    } while (steadyState != 0 && steadyState != 1);
-    if (steadyState == 1) solver = std::make_unique<FVSteadySolver>(residual, integrator, stepper);
-    else{
-        inlet->setTransient(true);
-        do{
-            std::cout << "Enter the frequency (after every how many iterations) that data are saved: ";
-            std::cin >> saveEveryNIterations;
-        } while (saveEveryNIterations < 1);
-        do{
-            std::cout << "Enter the maximum number of iterations: ";
-            std::cin >> maxIterations;
-        } while (maxIterations < 1);
-        solver = std::make_unique<FVUnSteadySolver>(residual, integrator, stepper, saveEveryNIterations, maxIterations);
-    }
+    // std::shared_ptr<TimeStepper> stepper = std::make_shared<LocalTimeStepper>(1, gamma, flux);
+    // std::unique_ptr<FVSolver> solver;
+    // int steadyState;
+    // int saveEveryNIterations, maxIterations;
+    // do{
+    //     std::cout << "Enter solver mode (0 = unsteady, 1 = steady): ";
+    //     std::cin >> steadyState;
+    // } while (steadyState != 0 && steadyState != 1);
+    // if (steadyState == 1) solver = std::make_unique<FVSteadySolver>(residual, integrator, stepper);
+    // else{
+    //     inlet->setTransient(true);
+    //     do{
+    //         std::cout << "Enter the frequency (after every how many iterations) that data are saved: ";
+    //         std::cin >> saveEveryNIterations;
+    //     } while (saveEveryNIterations < 1);
+    //     do{
+    //         std::cout << "Enter the maximum number of iterations: ";
+    //         std::cin >> maxIterations;
+    //     } while (maxIterations < 1);
+    //     solver = std::make_unique<FVUnSteadySolver>(residual, integrator, stepper, saveEveryNIterations, maxIterations);
+    // }
 
-    try{
-        solver->solve(states);
-        std::vector<Eigen::MatrixXd> results = solver->getResult(); // size = 1 if steady, more than 1 if unsteady
-        std::vector<double> l1norm = solver->getNorm();
+    // try{
+    //     solver->solve(states);
+    //     std::vector<Eigen::MatrixXd> results = solver->getResult(); // size = 1 if steady, more than 1 if unsteady
+    //     std::vector<double> l1norm = solver->getNorm();
 
-        std::vector<std::size_t> iter;
-        if (steadyState == 1) iter = {0};
-        else{
-            double t0 = 330;
-            double dt = 0.045; // time steps
-            std::size_t firstIter = t0/dt/saveEveryNIterations - 1;
-            iter = {firstIter, firstIter+1, firstIter+2, firstIter+3};
-        }
+    //     std::vector<std::size_t> iter;
+    //     if (steadyState == 1) iter = {0};
+    //     else{
+    //         double t0 = 330;
+    //         double dt = 0.045; // time steps
+    //         std::size_t firstIter = t0/dt/saveEveryNIterations - 1;
+    //         iter = {firstIter, firstIter+1, firstIter+2, firstIter+3};
+    //     }
 
-        std::ofstream file;
-        std::string resultFilePath = "projects/Project-2/";
-        resultFilePath += meshName + "_mesh_";
-        resultFilePath += (steadyState == 0) ? "unsteady_" : "steady_";
-        resultFilePath += (FVOrder == 1) ? "firstorder_" : "secondorder_";
-        resultFilePath += (timeOrder == 2) ? "RK2_" : "RK3_";
-        resultFilePath += fluxName;
+    //     std::ofstream file;
+    //     std::string resultFilePath = "projects/Project-2/";
+    //     resultFilePath += meshName + "_mesh_";
+    //     resultFilePath += (steadyState == 0) ? "unsteady_" : "steady_";
+    //     resultFilePath += (FVOrder == 1) ? "firstorder_" : "secondorder_";
+    //     resultFilePath += (timeOrder == 2) ? "RK2_" : "RK3_";
+    //     resultFilePath += fluxName;
         
-        file.open(resultFilePath + "_norm.txt");
-        for (auto norm: l1norm) file << norm << "\n";
-        file.close();
+    //     file.open(resultFilePath + "_norm.txt");
+    //     for (auto norm: l1norm) file << norm << "\n";
+    //     file.close();
 
-        for (auto it: iter){
-            if (steadyState == 0){
-                std::string resultFilePathAtIter = resultFilePath + "_t_" + std::to_string(it*0.045*saveEveryNIterations);
-                file.open(resultFilePathAtIter + ".txt");
-            } else file.open(resultFilePath + ".txt");
-            for (Eigen::Index e = 0; e < states.cellCount(); e++) file << results[it].col(e).transpose() << "\n";
-            file.close();
-        }
+    //     for (auto it: iter){
+    //         if (steadyState == 0){
+    //             std::string resultFilePathAtIter = resultFilePath + "_t_" + std::to_string(it*0.045*saveEveryNIterations);
+    //             file.open(resultFilePathAtIter + ".txt");
+    //         } else file.open(resultFilePath + ".txt");
+    //         for (Eigen::Index e = 0; e < states.cellCount(); e++) file << results[it].col(e).transpose() << "\n";
+    //         file.close();
+    //     }
 
-        return 0;
-    } catch (std::runtime_error& ex){
-        std::ofstream f("debug.txt");
+    //     return 0;
+    // } catch (std::runtime_error& ex){
+    //     std::ofstream f("debug.txt");
 
-    }
+    // }
 }
