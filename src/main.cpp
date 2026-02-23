@@ -20,6 +20,82 @@
 #include "StateMesh.h"
 #include "TriangularMesh.h"
 
+using StateMatrix = Eigen::Matrix<double,4,Eigen::Dynamic>;
+// --------------------------------------------------
+// Write VTK file for ParaView
+// --------------------------------------------------
+void writeVTK(const TriangularMesh& mesh,
+              const StateMatrix& U,
+              const Eigen::MatrixXd& gradX,
+              const Eigen::MatrixXd& gradY,
+              const std::string& filename)
+{
+    std::ofstream out(filename);
+
+    int nNodes = mesh.numNodes();
+    int nElems = mesh.numElems();
+
+    out << "# vtk DataFile Version 3.0\n";
+    out << "State and Gradient Output\n";
+    out << "ASCII\n";
+    out << "DATASET UNSTRUCTURED_GRID\n";
+
+    // ------------------ POINTS ------------------
+    out << "POINTS " << nNodes << " double\n";
+    for (int i = 0; i < nNodes; ++i)
+    {
+        auto p = mesh.node(i);
+        out << p(0) << " " << p(1) << " 0.0\n";
+    }
+
+    // ------------------ CELLS ------------------
+    out << "CELLS " << nElems << " " << 4*nElems << "\n";
+    for (int e = 0; e < nElems; ++e)
+    {
+        auto elem = mesh.elem(e);
+        out << "3 "
+            << elem._pointID[0] << " "
+            << elem._pointID[1] << " "
+            << elem._pointID[2] << "\n";
+    }
+
+    // ------------------ CELL TYPES ------------------
+    out << "CELL_TYPES " << nElems << "\n";
+    for (int e = 0; e < nElems; ++e)
+        out << "5\n";  // VTK_TRIANGLE
+
+    // ------------------ CELL DATA ------------------
+    out << "CELL_DATA " << nElems << "\n";
+
+    // ---- Write State Variables ----
+    for (int v = 0; v < 4; ++v)
+    {
+        out << "SCALARS U_var" << v << " double\n";
+        out << "LOOKUP_TABLE default\n";
+        for (int e = 0; e < nElems; ++e)
+            out << U(v,e) << "\n";
+    }
+
+    // ---- Write gradX ----
+    for (int v = 0; v < 4; ++v)
+    {
+        out << "SCALARS gradX_var" << v << " double\n";
+        out << "LOOKUP_TABLE default\n";
+        for (int e = 0; e < nElems; ++e)
+            out << gradX(v,e) << "\n";
+    }
+
+    // ---- Write gradY ----
+    for (int v = 0; v < 4; ++v)
+    {
+        out << "SCALARS gradY_var" << v << " double\n";
+        out << "LOOKUP_TABLE default\n";
+        for (int e = 0; e < nElems; ++e)
+            out << gradY(v,e) << "\n";
+    }
+
+    out.close();
+}
 
 int main() {
     std::shared_ptr<TriangularMesh> mesh;
