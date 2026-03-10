@@ -1,2 +1,7 @@
-add_executable(testWall flux/testWall.cpp)
-target_link_libraries(testWall core)
+add_executable(testReferenceElement
+    mesh/testReferenceElement.cpp
+)
+
+target_link_libraries(testReferenceElement
+    PRIVATE referenceElement
+)
