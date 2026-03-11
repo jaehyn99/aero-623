@@ -1,6 +1,6 @@
 // Implementation of the gradient function using walk over 3 edges for interior cells and plane normals reconstruction for boundaries
 
-# include "HybridWalkPNGrad.h"
+# include "hybridWalkPNGrad.h"
 # include "TriangularMesh.h"
 # include "StateMesh.h"
 
