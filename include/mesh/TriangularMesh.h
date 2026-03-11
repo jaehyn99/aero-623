@@ -1,7 +1,7 @@
 #ifndef TRIANGULAR_MESH_H
 #define TRIANGULAR_MESH_H
 
-#include "Eigen/Dense"
+
 #include <string>
 #include <vector>
 
@@ -9,18 +9,14 @@ class TriangularMesh{
     public:
     struct Face{
         std::array<int, 2> _pointID;
-        std::array<int, 2> _elemID{-1, -1};
         double _length;
-        std::size_t _nf; // number of linear nodes
+        std::size_t _Q; // number of linear nodes
         std::string _title;
-        int _periodicFaceID = -1;
-        int _periodicElemID = -1;
-        Eigen::Vector2d _normal;
 
-        Face(const TriangularMesh& mesh, std::size_t pointID1, std::size_t pointID2, std::size_t nf=2, const std::string& title="");
+        Face(std::size_t pointID1, std::size_t pointID2, std::size_t nf=2, const std::string& title="");
 
         bool isBoundaryFace() const noexcept{ return _title != ""; }
-        bool isPeriodicFace() const noexcept{ return _periodicFaceID != -1; }
+        bool isCurvedFace() const noexcept{ return _Q > 2; }
         bool operator==(const Face& other) const noexcept;
     };
 
