@@ -25,8 +25,8 @@ class TriangularMesh{
     };
 
     struct Element{
-        std::array<int, 3> _pointID;
-        std::array<int, 3> _faceID;
+        Eigen::Vector3i _pointID;
+        Eigen::Vector3i _faceID;
         std::size_t _order;
         std::string _basis;
         double _area;
@@ -57,14 +57,23 @@ class TriangularMesh{
     Eigen::Vector2d normal(std::size_t elemID, std::size_t localFaceID) const noexcept;
     Eigen::Vector2d centroid(std::size_t elemID){ return _elems[elemID]._centroid; }
 
-    void writeGri(const std::string& fileName) const noexcept;
+    const auto& I2E() const noexcept{ return _I2E; }
+    const auto& B2E() const noexcept{ return _B2E; }
+    const auto& In() const noexcept{ return _In; }
+    const auto& Bn() const noexcept{ return _Bn; }
 
     protected:
     std::vector<Eigen::Vector2d> _nodes;
     std::vector<Face> _faces;
-    std::vector<Element> _elems;    
+    std::vector<Element> _elems;
+
+    Eigen::Matrix<int, Eigen::Dynamic, 4, Eigen::RowMajor> _I2E;
+    Eigen::Matrix<int, Eigen::Dynamic, 3, Eigen::RowMajor> _B2E;
+    Eigen::Matrix<double, Eigen::Dynamic, 2, Eigen::RowMajor> _In;
+    Eigen::Matrix<double, Eigen::Dynamic, 2, Eigen::RowMajor> _Bn;
 
     std::vector<std::string> split(std::string& str) const noexcept;
+    void fillMatrices() noexcept;
 };
 
 #endif

@@ -193,6 +193,8 @@ TriangularMesh::TriangularMesh(const std::string& fileName){
         const Eigen::Vector2d& p2 = node(elem._pointID[(localFaceID+1)%3]); // One of the points on this edge
         if ((p1-p2).dot(face._normal) > 0) face._normal *= -1;
     }
+
+    fillMatrices();
 }
 
 Eigen::Vector2d TriangularMesh::normal(std::size_t elemID, std::size_t localFaceID) const noexcept{
@@ -205,21 +207,13 @@ Eigen::Vector2d TriangularMesh::normal(std::size_t elemID, std::size_t localFace
     return n; // on element L or on a boundary, periodic or not
 }
 
-void TriangularMesh::writeGri(const std::string& fileName) const noexcept{
-    std::ofstream of;
-    of << std::fixed << std::setprecision(15);
-    std::size_t ind = fileName.find(".gri");
-    std::string fileBase = (ind == std::string::npos) ? fileName : fileName.substr(0, ind);
+void TriangularMesh::fillMatrices() noexcept{
     
     // Stored all boundary names
     std::vector<std::string> boundaries;
-    bool stop = false;
-    while (!stop){
+    while (true){
         for (auto face: _faces){
-            if (!face.isBoundaryFace()){
-                stop = true;
-                break;
-            }
+            if (!face.isBoundaryFace()) break;
             else{
                 auto it = std::find(boundaries.cbegin(), boundaries.cend(), face._title);
                 if (it == boundaries.cend()) boundaries.push_back(face._title);
@@ -227,42 +221,31 @@ void TriangularMesh::writeGri(const std::string& fileName) const noexcept{
         }
     }
 
-    // Periodic edges
-    of.open(fileBase + "periodicEdges.txt");
-    std::vector<int> periodicEdgeID;
-    periodicEdgeID.reserve(_faces.size());
-    stop = periodicEdgeID.size() == 0;
-    int i = 1;
-    while (!stop){
-        for (auto face: _faces){
-            if (face.isBoundaryFace()){
-                if (!face.isPeriodicFace()) periodicEdgeID.push_back(0);
-                else{
-                    periodicEdgeID.push_back(i);
-                    i++;
-                }
-            } else{
-                stop = true;
-                break;
-            }
-        }
-    }
-    for (std::size_t i = 0; i < periodicEdgeID.size(); i++){
-        if (periodicEdgeID[i] == 0) continue;
-        const Face& face = _faces[i];
-        of << periodicEdgeID[face._periodicFaceID] << "\n";
-    }
-    of.close();
+    Eigen::Index icount, bcount;
+    _I2E.resize(numFaces(), Eigen::NoChange);
+    _B2E.resize(numFaces(), Eigen::NoChange);
+    _In.resize(numFaces(), Eigen::NoChange);
+    _Bn.resize(numFaces(), Eigen::NoChange);
 
-    // I2E
-    of.open(fileBase + "I2E.txt");
     for (std::size_t i = 0; i < _faces.size(); i++){
         const Face& face = _faces[i];
-        if (face.isBoundaryFace() && !face.isPeriodicFace()) continue;
-        if (!face.isBoundaryFace()){ // interior face
+        if (face.isBoundaryFace() && !face.isPeriodicFace()){ // boundary face
+            std::size_t elemID = face._elemID[0]; // Elem number
+            // Local face number
+            const Element& elem = _elems[elemID];
+            std::size_t localFaceID = std::find(elem._faceID.cbegin(), elem._faceID.cend(), i) - elem._faceID.cbegin();
+            // Group number
+            std::size_t bGroup = std::find(boundaries.cbegin(), boundaries.cend(), face._title) - boundaries.cbegin();
+            _B2E(i,0) = elemID;
+            _B2E(i,1) = localFaceID;
+            _B2E(i,2) = bGroup;
+            _Bn.row(i) = normal(elemID, localFaceID).transpose();
+            bcount++;
+        } else{ // interior or periodic face
             // Elem numbers
             std::size_t elemLID = face._elemID[0];
-            std::size_t elemRID = face._elemID[1];
+            std::size_t elemRID = face.isPeriodicFace() ? face._periodicElemID : face._elemID[1];
+            if (elemRID > elemLID) std::swap(elemLID, elemRID);
 
             // Local face numbers
             const Element& elemL = _elems[elemLID];
@@ -270,68 +253,19 @@ void TriangularMesh::writeGri(const std::string& fileName) const noexcept{
             const Element& elemR = _elems[elemRID];
             std::size_t faceR = std::find(elemR._faceID.cbegin(), elemR._faceID.cend(), i) - elemR._faceID.cbegin();
 
-            of << elemLID+1 << " " << faceL+1 << " " << elemRID+1 << " " << faceR+1 << "\n";
-        } else{
-            // Elem numbers
-            std::size_t elemID = face._elemID[0];
-            std::size_t pElemID = face._periodicElemID;
-
-            // Local face numbers
-            const Element& elem = _elems[elemID];
-            std::size_t faceL = std::find(elem._faceID.cbegin(), elem._faceID.cend(), i) - elem._faceID.cbegin();
-            const Element& pElem = _elems[pElemID]; // does not contain this face but its periodic counterpart
-            std::size_t faceR = std::find(pElem._faceID.cbegin(), pElem._faceID.cend(), face._periodicFaceID) - pElem._faceID.cbegin();
-
-            if (elemID < pElemID) of << elemID+1 << " " << faceL+1 << " " << pElemID+1 << " " << faceR+1 << "\n";
-            else of << pElemID+1 << " " << faceR+1 << " " << elemID+1 << " " << faceL+1 << "\n";
+            _I2E(i,0) = elemLID;
+            _I2E(i,1) = faceL;
+            _I2E(i,2) = elemRID;
+            _I2E(i,3) = faceR;
+            _In.row(i) = normal(elemLID, faceL).transpose();
+            icount++;
         }
     }
-    of.close();
 
-    // Connectivity matrix B2E
-    of.open(fileBase + "B2E.txt");
-    for (std::size_t i = 0; i < _faces.size(); i++){
-        const Face& face = _faces[i];
-        if (!face.isBoundaryFace() || face.isPeriodicFace()) continue;
-
-        std::size_t elemID = face._elemID[0]; // Elem number
-        // Local face number
-        const Element& elem = _elems[elemID];
-        std::size_t localFaceID = std::find(elem._faceID.cbegin(), elem._faceID.cend(), i) - elem._faceID.cbegin();
-        // Group number
-        std::size_t bGroup = std::find(boundaries.cbegin(), boundaries.cend(), face._title) - boundaries.cbegin();
-        of << elemID+1 << " " << localFaceID+1 << " " << bGroup+1 << "\n";
-    }
-    of.close();
-
-    // Normal vectors In
-    of.open(fileBase + "In.txt");
-    for (std::size_t i = 0; i < _faces.size(); i++){
-        const Face& face = _faces[i];
-        if (face.isBoundaryFace() && !face.isPeriodicFace()) continue;
-        std::size_t elemID = face._elemID[0];
-        const Element& elem = _elems[elemID];
-        std::size_t localFaceID = std::find(elem._faceID.cbegin(), elem._faceID.cend(), i) - elem._faceID.cbegin();
-        of << normal(elemID, localFaceID).transpose() << "\n";
-    }
-    of.close();
-
-    // Normal vectors Bn
-    of.open(fileBase + "Bn.txt");
-    for (std::size_t i = 0; i < _faces.size(); i++){
-        const Face& face = _faces[i];
-        if (!face.isBoundaryFace() || face.isPeriodicFace()) continue;
-        std::size_t elemID = face._elemID[0];
-        const Element& elem = _elems[elemID];
-        std::size_t localFaceID = std::find(elem._faceID.cbegin(), elem._faceID.cend(), i) - elem._faceID.cbegin();
-        of << normal(elemID, localFaceID).transpose() << "\n";
-    }
-    of.close();
-
-    // Areas
-    of.open(fileBase + "Area.txt");
-    for (const Element& elem: _elems) of << elem._area << "\n";
-    of.close();
+    _I2E.conservativeResize(icount, Eigen::NoChange);
+    _B2E.conservativeResize(bcount, Eigen::NoChange);
+    _In.conservativeResize(icount, Eigen::NoChange);
+    _Bn.conservativeResize(bcount, Eigen::NoChange);    
 }
 
 std::vector<std::string> TriangularMesh::split(std::string& str) const noexcept{
