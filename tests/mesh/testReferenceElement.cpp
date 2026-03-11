@@ -6,6 +6,6 @@ int main() {
 	int p = 1;
 	int q = 2;
 	referenceElement refElem(p, q);
-	std::cout << refElem.phiEta << std::endl;
+	std::cout << refElem.nQ << std::endl;
 	return 0;
 }

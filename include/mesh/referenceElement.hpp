@@ -9,22 +9,27 @@ class referenceElement {
 		Eigen::MatrixXd phi;
 		Eigen::MatrixXd phiXi;
 		Eigen::MatrixXd phiEta;
-		referenceElement(int p, int q) : p_(p), q_(q) {
+		Eigen::MatrixXd xiQ;
+		Eigen::MatrixXd xiL;
+		Eigen::VectorXd wQ;
+		int p, q, nQ, nL;
+		referenceElement(int p_, int q_) : p(p_), q(q_) {
+			p = p_; q = q_;
 			shapeFunctions shape(p_);
 			femQuadrature quad(q_);
-			Eigen::MatrixXd xiL = shape.getRefLagrangePoints(p_);
+			xiL = shape.getRefLagrangePoints(p_);
 			Eigen::MatrixXd phiCoeffs = shape.getShapeFuncCoeffs(p_);
 			Eigen::MatrixXd phiXiCoeffs = shape.getShapeFuncXiCoeffs(p_);
 			Eigen::MatrixXd phiEtaCoeffs = shape.getShapeFuncEtaCoeffs(p_);
 
-			Eigen::MatrixXd xiQ = quad.getQuadXi(q_);
-			Eigen::VectorXd wQ = quad.getQuadW(q_);
-			int nQ = wQ.size();
-
-			Eigen::VectorXd mon((p_ + 1)*(p_ + 2)/2);
-			phi.resize(nQ, (p_ + 1)*(p_ + 2)/2);
-			phiXi.resize(nQ, (p_ + 1)*(p_ + 2)/2);
-			phiEta.resize(nQ, (p_ + 1)*(p_ + 2)/2);
+			xiQ = quad.getQuadXi(q_);
+			wQ = quad.getQuadW(q_);
+			nQ = wQ.size();
+			nL = (p_ + 1)*(p_ + 2)/2;
+			Eigen::VectorXd mon(nL);
+			phi.resize(nQ, nL);
+			phiXi.resize(nQ, nL);
+			phiEta.resize(nQ, nL);
 
 			phi.setZero(); phiXi.setZero(); phiEta.setZero();
 			for (int ii = 0; ii < nQ; ii++) {
@@ -34,8 +39,8 @@ class referenceElement {
 					}
 				}
 
-				for (int jj = 0; jj < (p_ + 1)*(p_ + 2)/2; jj++) {
-					for (int kk = 0; kk < (p_ + 1)*(p_ + 2)/2; kk++) {
+				for (int jj = 0; jj < nL; jj++) {
+					for (int kk = 0; kk < nL; kk++) {
 						phi(ii, jj) = phi(ii, jj) + phiCoeffs(jj, kk)*mon(kk);
 					}
 					for (int kk = 0; kk < p_*(p_ + 1)/2; kk++) {
