@@ -3,8 +3,8 @@
 #include <Eigen/Dense>
 
 int main() {
-	int p = 2;
-	int q = 4;
+	int p = 1;
+	int q = 2;
 	Eigen::MatrixXd V(3, 2);
 	V << 1, 1,
 	     3, 1,
@@ -12,7 +12,6 @@ int main() {
 
 	referenceElement refElem(p, q);
 	globalElement globElem(V, refElem);
-	std::cout << globElem.J[0] << std::endl;
-	std::cout << globElem.detJ[0] << std::endl;
+	std::cout << globElem.M << std::endl;
 	return 0;
 }

@@ -11,6 +11,7 @@ class referenceElement {
 		Eigen::MatrixXd phiEta;
 		Eigen::MatrixXd xiQ;
 		Eigen::MatrixXd xiL;
+		Eigen::MatrixXd MRef;
 		Eigen::VectorXd wQ;
 		int p, q, nQ, nL;
 		referenceElement(int p_, int q_) : p(p_), q(q_) {
@@ -30,8 +31,9 @@ class referenceElement {
 			phi.resize(nQ, nL);
 			phiXi.resize(nQ, nL);
 			phiEta.resize(nQ, nL);
+			MRef.resize(nL, nL);
 
-			phi.setZero(); phiXi.setZero(); phiEta.setZero();
+			phi.setZero(); phiXi.setZero(); phiEta.setZero(); MRef.setZero();
 			for (int ii = 0; ii < nQ; ii++) {
 				for (int jj = 0; jj < p_ + 1; jj++) {
 					for (int kk = 0; kk < jj + 1; kk++) {
@@ -46,6 +48,14 @@ class referenceElement {
 					for (int kk = 0; kk < p_*(p_ + 1)/2; kk++) {
 						phiXi(ii, jj) = phiXi(ii, jj) + phiXiCoeffs(kk, jj)*mon(kk);
 						phiEta(ii, jj) = phiEta(ii, jj) + phiEtaCoeffs(kk, jj)*mon(kk);
+					}
+				}
+			}
+
+			for (int ii = 0; ii < nL; ii++) {
+				for (int jj = 0; jj < nL; jj++) {
+					for (int kk = 0; kk < nQ; kk++) {
+						MRef(ii, jj) = MRef(ii, jj) + wQ(kk)*phi(kk, ii)*phi(kk, jj);
 					}
 				}
 			}
