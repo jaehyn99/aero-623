@@ -9,7 +9,7 @@
 #include "FVUnsteadySolver.h"
 #include "GaussLegendre.h"
 #include "HLLEFlux.h"
-#include "HybridWalkPNGrad.h"
+#include "hybridWalkPNGrad.h"
 #include "InletBC.h"
 #include "InletOutletBC.h"
 #include "InviscidWallBC.h"
