@@ -8,8 +8,13 @@ void CurvedMesh::curved_mesh(TriangularMesh& mesh, const Eigen::MatrixXi& B2E, i
     // loop over B2E and curve the edges and subsequently the nodes at the p=3 order
     for (int f_b = 0; f_b < B2E.rows(); f_b++)
     {
-        // get basis function values at quadrature points for each 1D lagrange polynomial
+        // Compute the order of quadrature for internal points required as 2p+1 + 2*(Q-1)
 
+        // Compute the order of quadrature for edge points required as 2p+1 + Q-1
+
+        // get 1D Quadrature points along the reference edge (0,0)-(1,0) for the given order
+
+        // get basis function values at quadrature points for each 1D lagrange polynomial
 
         // get the coordinates of the nodes from cubic spline on the edge and curve them using the basis functions
 
