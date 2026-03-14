@@ -1,3 +1,4 @@
+#include "shapeL1D.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -11,7 +12,6 @@ shapeL1D(double sig, int q, double **pphi)
      pphi is reallocated to size (q+1). */
     int nshape;
     double *phi;
-    
     nshape = q + 1;
 
     if ((*pphi) == NULL)
@@ -23,21 +23,21 @@ shapeL1D(double sig, int q, double **pphi)
 
     // Shape functions for 1D Lagrange polynomials
     case 1:
-        phi[0] = 1 - sig;
+        phi[0] = 1.0 - sig;
         phi[1] = sig;
         break;
         
     case 2:
-        phi[0] = 2*sig*sig - 3*sig + 1;
-        phi[1] = -4*sig*sig + 4*sig;
-        phi[2] = 2*sig*sig - sig;
+        phi[0] = 2.0*sig*sig - 3.0*sig + 1.0;
+        phi[1] = -4.0*sig*sig + 4.0*sig;
+        phi[2] = 2.0*sig*sig - 1.0*sig;
         break;
 
     case 3:
-        phi[0] = -9/2*sig*sig*sig + 9*sig*sig -11/2*sig +1;
-        phi[1] = 27/2*sig*sig*sig - 45/2*sig*sig + 9*sig;
-        phi[2] = -27/2*sig*sig*sig + 18*sig*sig - 9/2*sig;
-        phi[3] = 9/2*sig*sig*sig - 9/2*sig + sig;
+        phi[0] = -9.0/2.0*sig*sig*sig + 9.0*sig*sig -11.0/2.0*sig +1.0;
+        phi[1] = 27.0/2.0*sig*sig*sig - 45.0/2.0*sig*sig + 9.0*sig;
+        phi[2] = -27.0/2.0*sig*sig*sig + 18.0*sig*sig - 9.0/2.0*sig;
+        phi[3] = 9.0/2.0*sig*sig*sig - 9.0/2.0*sig*sig + sig;
         break;
 
     default:
@@ -57,7 +57,6 @@ gradientL1D(double sig, int q, double **qgphi)
 
     int nshape;
     double *gphi;
-
     nshape = q+1;
 
     if ((*qgphi) == NULL)
@@ -69,21 +68,21 @@ gradientL1D(double sig, int q, double **qgphi)
     
     switch (q){
         case 1:
-            gphi[0] = -1;
-            gphi[1] = 1;
+            gphi[0] = -1.0;
+            gphi[1] = 1.0;
             break;
                 
         case 2:
-            gphi[0] = 4*sig - 3;
-            gphi[1] = -8*sig + 4;
-            gphi[2] = 4*sig - 1;
+            gphi[0] = 4.0*sig - 3.0;
+            gphi[1] = -8.0*sig + 4.0;
+            gphi[2] = 4.0*sig - 1.0;
             break;
 
         case 3:
-            gphi[0] = -27/2*sig*sig + 18*sig - 11/2;
-            gphi[1] = 81/2*sig*sig - 45*sig + 9;
-            gphi[2] = -81/2*sig*sig + 36*sig - 9/2;
-            gphi[3] = 27/2*sig*sig - 9*sig + 1;
+            gphi[0] = -27.0/2.0*sig*sig + 18.0*sig - 11.0/2.0;
+            gphi[1] = 81.0/2.0*sig*sig - 45.0*sig + 9.0;
+            gphi[2] = -81.0/2.0*sig*sig + 36.0*sig - 9.0/2.0;
+            gphi[3] = 27.0/2.0*sig*sig - 9.0*sig + 1.0;
             break;
 
         default:
