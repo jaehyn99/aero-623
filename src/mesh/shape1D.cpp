@@ -27,7 +27,7 @@ shapeL1D(double sig, int q, double **pphi)
         phi[1] = sig;
         break;
         
-    case 2:
+    case 2: 
         phi[0] = 2*sig*sig - 3*sig + 1;
         phi[1] = -4*sig*sig + 4*sig;
         phi[2] = 2*sig*sig - sig;

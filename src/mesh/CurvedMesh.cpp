@@ -1,7 +1,7 @@
 #include "CurvedMesh.h"
 #include "TriangularMesh.h"
 #include "femQuadrature.hpp"
-
+#include "Quadrature1D.hpp"
 
 #include "Eigen/Dense"
 
@@ -11,16 +11,20 @@ void CurvedMesh::curved_mesh(TriangularMesh& mesh, const Eigen::MatrixXi& B2E, i
     for (int f_b = 0; f_b < B2E.rows(); f_b++)
     {
         // Compute the order of quadrature for internal points required as 2p+1 + 2*(Q-1)
-        int quad_order_internal = 2 * p + 1 + 2 * (Q - 1);
+        int quad_order_internal = 2*p + 1 + 2*(Q - 1);
 
         // Compute the order of quadrature for edge points required as 2p+1 + Q-1
-        int quad_order_edge = 2 * p + 1 + Q - 1;
+        int quad_order_edge = 2*p+1 + Q-1;
 
         // get 1D Quadrature points along the reference edge (0,0)-(1,0) for the given order
+        Eigen::VectorXd xiq_edge = Quadrature1D::getQuadXi(quad_order_edge);
+        Eigen::VectorXd wq_edge = Quadrature1D::getQuadW(quad_order_edge);
 
         // get basis function values at quadrature points for each 1D lagrange polynomial
-
+        Eigen::MatrixXd phiq_edge = shape1D(xiq_edge, quad_order_edge);
+        
         // get the coordinates of the nodes from cubic spline on the edge and curve them using the basis functions
+        
 
         // 
 
