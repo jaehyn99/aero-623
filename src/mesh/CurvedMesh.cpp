@@ -1,16 +1,20 @@
 #include "CurvedMesh.h"
 #include "TriangularMesh.h"
+#include "femQuadrature.hpp"
+
 
 #include "Eigen/Dense"
 
-void CurvedMesh::curved_mesh(TriangularMesh& mesh, const Eigen::MatrixXi& B2E, int order)
+void CurvedMesh::curved_mesh(TriangularMesh& mesh, const Eigen::MatrixXi& B2E, int Q, int p)
 {
     // loop over B2E and curve the edges and subsequently the nodes at the p=3 order
     for (int f_b = 0; f_b < B2E.rows(); f_b++)
     {
         // Compute the order of quadrature for internal points required as 2p+1 + 2*(Q-1)
+        int quad_order_internal = 2 * p + 1 + 2 * (Q - 1);
 
         // Compute the order of quadrature for edge points required as 2p+1 + Q-1
+        int quad_order_edge = 2 * p + 1 + Q - 1;
 
         // get 1D Quadrature points along the reference edge (0,0)-(1,0) for the given order
 
