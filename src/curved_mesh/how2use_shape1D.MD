@@ -1,8 +1,8 @@
 1. Evaluate shape functions:
-   shapeL1D(sig, q, &phi)
+   shape1D(sig, q, &phi)
 
 2. Evaluate derivatives:
-   gradientL1D(sig, q, &gphi)
+   gradient1D(sig, q, &gphi)
 
 3. Compute edge derivatives:
    dxdsig = sum_j x[j] * gphi[j]
