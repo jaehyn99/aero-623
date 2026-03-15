@@ -8,7 +8,7 @@
 
 class CurvedMesh{
     public:
-    void curved_mesh(TriangularMesh& mesh, const Eigen::MatrixXi& B2E, int order);
+    void curved_mesh(TriangularMesh& mesh, const Eigen::MatrixXi& B2E, int order, int p);
 };
 
 #endif

@@ -1,4 +1,5 @@
-#include "shapeL1D.h"
+#include "Eigen/Dense"
+#include "shape1D.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -90,3 +91,36 @@ gradientL1D(double sig, int q, double **qgphi)
     }
     return 0;
 } // gradientL1D
+
+
+/******************************************************************/
+//   FUNCTION Definition: shapeL1D (Eigen wrapper)
+Eigen::MatrixXd shapeL1D_quad(const Eigen::VectorXd& xiq, int p)
+{
+    int nQ = xiq.size();
+    Eigen::MatrixXd phiq(nQ, p + 1);
+    double *phi = NULL;
+    for (int i = 0; i < nQ; i++) {
+        shapeL1D(xiq(i), p, &phi);
+        for (int j = 0; j < p + 1; j++)
+            phiq(i, j) = phi[j];
+    }
+    free(phi);
+    return phiq;
+}
+
+/******************************************************************/
+//   FUNCTION Definition: gradL1D (Eigen wrapper)
+Eigen::MatrixXd gradL1D_quad(const Eigen::VectorXd& xiq, int p)
+{
+    int nQ = xiq.size();
+    Eigen::MatrixXd gphiq(nQ, p + 1);
+    double *gphi = NULL;
+    for (int i = 0; i < nQ; i++) {
+        gradientL1D(xiq(i), p, &gphi);
+        for (int j = 0; j < p + 1; j++)
+            gphiq(i, j) = gphi[j];
+    }
+    free(gphi);
+    return gphiq;
+}

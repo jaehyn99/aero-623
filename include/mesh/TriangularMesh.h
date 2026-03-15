@@ -35,6 +35,17 @@ class TriangularMesh{
         Element(TriangularMesh& mesh, std::size_t pointID1, std::size_t pointID2, std::size_t pointID3, std::size_t ord=1, const std::string& basis="TriLagrange");
     };
 
+    // --- NEW: curved element data ---
+    struct CurvedElement {
+        int elemID;                       // global element index
+        int faceID;                       // global face index
+        int localFaceID;                  // local face index (0,1,2) within element
+        Eigen::MatrixXd normals;          // (nQe x 2) unit outward normals at edge quad points
+        Eigen::VectorXd edge_jacobian;    // (nQe)     arc length Jacobian at edge quad points
+        Eigen::VectorXd int_jacobian;     // (nQi)     det(J) at internal quad points
+    };
+
+
     TriangularMesh(const std::string& file_name);
 
     std::size_t numNodes() const noexcept{ return _nodes.size(); }
@@ -47,6 +58,13 @@ class TriangularMesh{
     const Face& face(std::size_t faceID) const noexcept{ return _faces[faceID]; }
     Element& elem(std::size_t elemID) noexcept{ return _elems[elemID]; }
     const Element& elem(std::size_t elemID) const noexcept{ return _elems[elemID]; }
+
+
+    // NEW accessors for curved elements
+    CurvedElement& curvedElem(std::size_t i) noexcept{ return _curvedElems[i]; }
+    const CurvedElement& curvedElem(std::size_t i) const noexcept{ return _curvedElems[i]; }
+    const std::vector<CurvedElement>& getCurvedElems() const noexcept{ return _curvedElems; }
+
 
     const std::vector<Eigen::Vector2d>& getNodes() const noexcept{ return _nodes; }
     const std::vector<Face>& getFaces() const noexcept{ return _faces; }
@@ -66,6 +84,7 @@ class TriangularMesh{
     std::vector<Eigen::Vector2d> _nodes;
     std::vector<Face> _faces;
     std::vector<Element> _elems;
+    std::vector<CurvedElement> _curvedElems;  // NEW: store curved element data
 
     Eigen::Matrix<int, Eigen::Dynamic, 4, Eigen::RowMajor> _I2E;
     Eigen::Matrix<int, Eigen::Dynamic, 3, Eigen::RowMajor> _B2E;

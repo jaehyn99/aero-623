@@ -316,7 +316,7 @@ int main() {
         upperSpline,
         sUpper.front(),
         sUpper.back(),
-        1
+        3
     );
 
     auto lowerCurved = buildCurvedEdges(
@@ -326,7 +326,7 @@ int main() {
         lowerSpline,
         sLower.front(),
         sLower.back(),
-        1
+        3
     );
 
     writeCurvedEdges("upper_curved_edges.txt", upperCurved);
