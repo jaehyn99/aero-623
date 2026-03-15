@@ -1,52 +1,8 @@
-// // Psuedo code 
-// // 1. Read blade points from bladeupper.txt and bladelower.txt
-// // 2. Fit the airfoil surface points to a smooth curve (cubic spline).
-// // 3. Identify mesh boundary edges and end nodes that belong to the blade
-// // 3. Define lagrange basis points (q = 1, 2, 3) on the qubic spline in between the end nodes of mesh boundary edges that belong to the blade
-// // 4. Leave all non-blade elements linear
-
-// // Read B2E file to get the boundary edges and their corresponding boundary groups
-// // Read the coordinates of the airfoil surface points and fit a cubic spline to these points to get a smooth representation of the airfoil surface curve
-
-// // If Q == 1:
-// //     Define the lagrange basis points on the boundary edges as the endpoints of the edges
-// // Else if Q == 2:
-// //     Define the lagrange basis points on the boundary edges as the endpoints and the midpoint of the edges
-// // Else if Q == 3:
-// //     Define the lagrange basis points on the boundary edges as the endpoints, the midpoint, and two additional points at 1/3 and 2/3 along the edge
-
-// // For each boundary group corresponding to the airfoil surface:
-// //     For each boundary edge in the group:
-// //         Get the coordinates of the endpoints of the edge
-// //         For each lagrange basis point defined on the edge:
-// //             Calculate the physical coordinates of the lagrange basis point using the cubic spline representation of the airfoil surface curve
-// // Output the new coordinates of the lagrange basis points for the boundary edges to be used in the curved mesh.
-
-#include <vector>
+#include "curved_mesh/geom_snap.h"
+// #include "geom_snap.h"
 #include <fstream>
 #include <iostream>
-#include <string>
 #include <cmath>
-#include <map>
-
-struct Point2D {
-    double x, y;
-};
-
-struct BoundaryPair {
-    int n1, n2;   // 1-based node ids
-};
-
-struct GriMesh {
-    std::vector<Point2D> nodes;   // 1-based in file, stored 0-based here
-    std::map<std::string, std::vector<BoundaryPair>> curves;
-};
-
-struct CurvedBoundaryEdge {
-    std::string curveName;
-    int n1, n2;
-    std::vector<Point2D> qnodes;
-};
 
 // Read blade geometry points
 std::vector<Point2D> readBladePoints(const std::string& filename) {
@@ -91,75 +47,72 @@ std::vector<double> getY(const std::vector<Point2D>& pts) {
     return y;
 }
 
-// 1D cubic spline
-class CubicSpline1D {
-public:
-    void build(const std::vector<double>& s, const std::vector<double>& f) {
-        const std::size_t n = s.size();
-        s_ = s;
-        a_ = f;
+void CubicSpline1D::build(const std::vector<double>& s, const std::vector<double>& f) {
+    const std::size_t n = s.size();
+    s_ = s;
+    a_ = f;
 
-        std::vector<double> h(n - 1);
-        for (std::size_t i = 0; i < n - 1; ++i) {
-            h[i] = s_[i + 1] - s_[i];
-        }
-
-        std::vector<double> alpha(n, 0.0);
-        for (std::size_t i = 1; i < n - 1; ++i) {
-            alpha[i] = (3.0 / h[i]) * (a_[i + 1] - a_[i])
-                     - (3.0 / h[i - 1]) * (a_[i] - a_[i - 1]);
-        }
-
-        std::vector<double> l(n), mu(n), z(n);
-        c_.assign(n, 0.0);
-        b_.assign(n - 1, 0.0);
-        d_.assign(n - 1, 0.0);
-
-        l[0] = 1.0;
-        mu[0] = 0.0;
-        z[0] = 0.0;
-
-        for (std::size_t i = 1; i < n - 1; ++i) {
-            l[i] = 2.0 * (s_[i + 1] - s_[i - 1]) - h[i - 1] * mu[i - 1];
-            mu[i] = h[i] / l[i];
-            z[i] = (alpha[i] - h[i - 1] * z[i - 1]) / l[i];
-        }
-
-        l[n - 1] = 1.0;
-        z[n - 1] = 0.0;
-        c_[n - 1] = 0.0;
-
-        for (int j = static_cast<int>(n) - 2; j >= 0; --j) {
-            c_[j] = z[j] - mu[j] * c_[j + 1];
-            b_[j] = (a_[j + 1] - a_[j]) / h[j]
-                  - h[j] * (2.0 * c_[j] + c_[j + 1]) / 3.0;
-            d_[j] = (c_[j + 1] - c_[j]) / (3.0 * h[j]);
-        }
+    std::vector<double> h(n - 1);
+    for (std::size_t i = 0; i < n - 1; ++i) {
+        h[i] = s_[i + 1] - s_[i];
     }
 
-    double eval(double sQuery) const {
-        if (sQuery <= s_.front()) return evalInterval(0, sQuery);
-        if (sQuery >= s_.back())  return evalInterval(s_.size() - 2, sQuery);
-
-        std::size_t i = findInterval(sQuery);
-        return evalInterval(i, sQuery);
+    std::vector<double> alpha(n, 0.0);
+    for (std::size_t i = 1; i < n - 1; ++i) {
+        alpha[i] = (3.0 / h[i]) * (a_[i + 1] - a_[i])
+                 - (3.0 / h[i - 1]) * (a_[i] - a_[i - 1]);
     }
 
-private:
-    std::size_t findInterval(double sQuery) const {
-        for (std::size_t i = 0; i < s_.size() - 1; ++i) {
-            if (sQuery >= s_[i] && sQuery <= s_[i + 1]) return i;
-        }
-        return s_.size() - 2;
+    std::vector<double> l(n), mu(n), z(n);
+    c_.assign(n, 0.0);
+    b_.assign(n - 1, 0.0);
+    d_.assign(n - 1, 0.0);
+
+    l[0] = 1.0;
+    mu[0] = 0.0;
+    z[0] = 0.0;
+
+    for (std::size_t i = 1; i < n - 1; ++i) {
+        l[i] = 2.0 * (s_[i + 1] - s_[i - 1]) - h[i - 1] * mu[i - 1];
+        mu[i] = h[i] / l[i];
+        z[i] = (alpha[i] - h[i - 1] * z[i - 1]) / l[i];
     }
 
-    double evalInterval(std::size_t i, double sQuery) const {
-        double ds = sQuery - s_[i];
-        return a_[i] + b_[i]*ds + c_[i]*ds*ds + d_[i]*ds*ds*ds;
-    }
+    l[n - 1] = 1.0;
+    z[n - 1] = 0.0;
+    c_[n - 1] = 0.0;
 
-    std::vector<double> s_, a_, b_, c_, d_;
-};
+    for (int j = static_cast<int>(n) - 2; j >= 0; --j) {
+        c_[j] = z[j] - mu[j] * c_[j + 1];
+        b_[j] = (a_[j + 1] - a_[j]) / h[j]
+              - h[j] * (2.0 * c_[j] + c_[j + 1]) / 3.0;
+        d_[j] = (c_[j + 1] - c_[j]) / (3.0 * h[j]);
+    }
+}
+
+double CubicSpline1D::eval(double sQuery) const {
+    if (sQuery <= s_.front()) return evalInterval(0, sQuery);
+    if (sQuery >= s_.back())  return evalInterval(s_.size() - 2, sQuery);
+
+    std::size_t i = findInterval(sQuery);
+    return evalInterval(i, sQuery);
+}
+
+std::size_t CubicSpline1D::findInterval(double sQuery) const {
+    for (std::size_t i = 0; i < s_.size() - 1; ++i) {
+        if (sQuery >= s_[i] && sQuery <= s_[i + 1]) return i;
+    }
+    return s_.size() - 2;
+}
+
+double CubicSpline1D::evalInterval(std::size_t i, double sQuery) const {
+    double ds = sQuery - s_[i];
+    return a_[i] + b_[i]*ds + c_[i]*ds*ds + d_[i]*ds*ds*ds;
+}
+
+Point2D ParametricSpline2D::eval(double s) const {
+    return {sx.eval(s), sy.eval(s)};
+}
 
 // q = 1,2,3 Lagrange edge-node locations
 std::vector<double> lagrangePoints(int q) {
@@ -167,14 +120,6 @@ std::vector<double> lagrangePoints(int q) {
     if (q == 2) return {0.0, 0.5, 1.0};
     return {0.0, 1.0/3.0, 2.0/3.0, 1.0};
 }
-
-// 2D spline wrapper
-struct ParametricSpline2D {
-    CubicSpline1D sx, sy;
-    Point2D eval(double s) const {
-        return {sx.eval(s), sy.eval(s)};
-    }
-};
 
 // recover spline parameter of a boundary point
 double findS(const Point2D& p, const ParametricSpline2D& spline, double s0, double s1) {
@@ -291,46 +236,4 @@ void writeCurvedEdges(const std::string& filename,
         }
         out << "\n";
     }
-}
-
-int main() {
-    auto upper = readBladePoints("/home/jaehyn/CFD2/aero-623/projects/Project-3/bladeupper.txt");
-    auto lower = readBladePoints("/home/jaehyn/CFD2/aero-623/projects/Project-3/bladelower.txt");
-    auto lowerShifted = offset(lower, 0.0, 18.0);
-
-    auto sUpper = arcLength(upper);
-    auto sLower = arcLength(lowerShifted);
-
-    ParametricSpline2D upperSpline, lowerSpline;
-    upperSpline.sx.build(sUpper, getX(upper));
-    upperSpline.sy.build(sUpper, getY(upper));
-    lowerSpline.sx.build(sLower, getX(lowerShifted));
-    lowerSpline.sy.build(sLower, getY(lowerShifted));
-
-    GriMesh mesh = readGri("/home/jaehyn/CFD2/aero-623/projects/Project-1/mesh_coarse.gri");
-
-    auto upperCurved = buildCurvedEdges(
-        "Curve1",
-        mesh.curves["Curve1"],
-        mesh.nodes,
-        upperSpline,
-        sUpper.front(),
-        sUpper.back(),
-        3
-    );
-
-    auto lowerCurved = buildCurvedEdges(
-        "Curve5",
-        mesh.curves["Curve5"],
-        mesh.nodes,
-        lowerSpline,
-        sLower.front(),
-        sLower.back(),
-        3
-    );
-
-    writeCurvedEdges("upper_curved_edges.txt", upperCurved);
-    writeCurvedEdges("lower_curved_edges.txt", lowerCurved);
-
-    return 0;
 }
