@@ -37,12 +37,14 @@ class TriangularMesh{
 
     // --- NEW: curved element data ---------------------------------------
     struct CurvedElement {
-        int elemID;                       // global element index
-        int faceID;                       // global face index
-        int localFaceID;                  // local face index (0,1,2) within element
-        Eigen::MatrixXd normals;          // (nQe x 2) unit outward normals at edge quad points
-        Eigen::VectorXd edge_jacobian;    // (nQe)     arc length Jacobian at edge quad points
-        Eigen::VectorXd int_jacobian;     // (nQi)     det(J) at internal quad points
+        int elemID;                                    // global element index
+        int faceID;                                    // global curved face index
+        int localFaceID;                               // local curved face index (0,1,2) within element
+        Eigen::MatrixXd normals;                       // (nQe x 2) unit outward normals at edge quad points
+        std::vector<Eigen::VectorXd> edge_jacobian;    // (nQe) arc length Jacobian at edge quad points
+        Eigen::VectorXd det_edge_jacobian;             // (nQe) det(J) at edge quad points
+        std::vector<Eigen::VectorXd> int_jacobian;     // (nQi) det(J) at internal quad points
+        Eigen::VectorXd det_int_jacobian;              // (nQi) det(J) at internal quad points
     };
     // --------------------------------------------------------------------
 

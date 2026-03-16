@@ -128,8 +128,8 @@ void CurvedMesh::curved_mesh(const Eigen::MatrixXi& B2E, int Q, int p,
             Eigen::MatrixXd xq_edge = phiq_edge * edge_nodes_curved;
 
             // Tangent and normal vectors at edge quadrature points
-            Eigen::MatrixXd dx_dxi = gphiq_edge * edge_nodes_curved;
-            Eigen::MatrixXd tangents = dx_dxi.rowwise().normalized();
+            Eigen::MatrixXd dx_dsig = gphiq_edge * edge_nodes_curved;
+            Eigen::MatrixXd tangents = dx_dsig.rowwise().normalized();
             Eigen::MatrixXd normals = Eigen::MatrixXd(tangents.rows(), 2);
             for (int i = 0; i < tangents.rows(); i++) 
             {
@@ -137,18 +137,13 @@ void CurvedMesh::curved_mesh(const Eigen::MatrixXi& B2E, int Q, int p,
                 normals(i, 1) = tangents(i, 0);
             }
 
+            // Jacobian at edge quadrature points
+            Eigen::VectorXd edge_jacobians = dx_dsig.rowwise().norm();
+
+            // Jacobians at internal quadrature points
+            Eigen::MatrixXd xq_internal(nq_internal, 2);
             
         }
-
-            // Now we have the Q+1 curved nodes for this edge in qnodes. We can use these to compute the new positions of the internal nodes of the adjacent element.
-            // We also need to compute the new normals and Jacobians at the edge quadrature points for the curved element data structure.
-         // Get left cell index for the edge (there is no right cell since this is a boundary edge)
-        int elemID = B2E(f_b, 0);
-        // get the coordinates of the nodes from cubic spline on the edge and curve them using the basis functions
-        // Eigen::MatrixXd edge_nodes_curved = 
-        
-
-        // 
 
     }
 }
