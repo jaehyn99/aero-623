@@ -14,8 +14,8 @@ class Element{
     // Eigen::Vector2d centroid() const noexcept{ return _centroid; }
 
     virtual bool isCurvedElement() const noexcept = 0;
-    virtual Eigen::Matrix2d edgeJacobianMatrix(std::size_t, std::size_t) const noexcept = 0;
-    virtual double edgeJacobianDeterminant(std::size_t, std::size_t) const noexcept = 0;
+    virtual Eigen::Matrix2d edgeJacobianMatrix(std::size_t) const noexcept = 0;
+    virtual double edgeJacobianDeterminant(std::size_t) const noexcept = 0;
     virtual Eigen::Matrix2d internalJacobianMatrix(std::size_t) const noexcept = 0;
     virtual double internalJacobianDeterminant(std::size_t) const noexcept = 0;
 

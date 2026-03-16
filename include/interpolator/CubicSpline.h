@@ -13,7 +13,7 @@ class CubicSpline{
     Eigen::Vector2d evalDeriv2(double s) const noexcept;
     double projection(const Eigen::Vector2d& p) const;
 
-    //protected:
+    protected:
     Eigen::VectorXd slopes(const Eigen::VectorXd&) noexcept;
     Eigen::VectorXd _X, _Y; // dependent variables
     Eigen::VectorXd _S; // independent variable

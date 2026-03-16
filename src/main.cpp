@@ -24,22 +24,14 @@
 #include "LagrangeBasisFunctions.h"
 
 int main() {
-    LagrangeBasisFunctions P(2);
-    int Ns = 4;
-    int Np = 6;
-    Eigen::MatrixXd coeff = Eigen::MatrixXd::Zero(Ns, Np);
-    coeff(0,0) = 3;
-    coeff(1,1) = 2;
-    coeff(2,3) = 0.5;
-    coeff(3,4) = -1;
 
-    std::cout << P.funcEval(0.25, 0.25, coeff) << std::endl;
+    std::shared_ptr<TriangularMesh> mesh;
+    std::string meshName;
+    std::size_t p = 2;
+    std::size_t q = 3;
+    std::size_t r = 2*p+1;
+    mesh = std::make_shared<TriangularMesh>("projects/Project-2/mesh_refined_2394.gri", p, q, r);
 
-    // std::shared_ptr<TriangularMesh> mesh;
-    // std::string meshName;
-    // std::size_t p = 2;
-    // std::size_t q = 3;
-    // std::size_t r = 2*p+1;
     // do{
     //     std::cout << "Enter mesh name (\"coarse\", \"fine\", \"finer\", or \"finest\"): ";
     //     std::cin >> meshName;

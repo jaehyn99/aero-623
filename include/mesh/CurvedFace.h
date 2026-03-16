@@ -1,0 +1,18 @@
+#ifndef CURVED_FACE_H
+#define CURVED_FACE_H
+
+#include "Face.h"
+class CurvedFace: public Face{
+    public:
+    friend class TriangularMesh;
+    CurvedFace(const Eigen::Vector2i&, double, int, std::string="");
+
+    bool isCurvedFace() const noexcept override{ return true; }
+    Eigen::Vector2d normal(std::size_t q) const noexcept{ return _n.col(q); }
+
+    protected:
+    Eigen::Matrix2Xd _xq; // position of each quadrature points
+    Eigen::Matrix2Xd _n;  // normal vectors at each quadrature points
+};
+
+#endif

@@ -1,9 +1,8 @@
 #include "Face.h"
 
-Face::Face(const Eigen::Vector2i& pointID, double length, std::size_t Q, std::string title):
+Face::Face(const Eigen::Vector2i& pointID, double length, std::string title):
     _pointID(pointID),
     _length(length),
-    _Q(Q),
     _title(title)
 {}
 
