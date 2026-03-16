@@ -1,7 +1,7 @@
-add_executable(testReferenceElement
-    mesh/testReferenceElement.cpp
+add_executable(testGlobalElement
+    mesh/testGlobalElement.cpp
 )
 
-target_link_libraries(testReferenceElement
-    PRIVATE referenceElement
+target_link_libraries(testGlobalElement
+    PRIVATE globalElement
 )
