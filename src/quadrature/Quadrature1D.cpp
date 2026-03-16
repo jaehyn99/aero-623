@@ -2,7 +2,7 @@
 #include <iostream>
 #include <Eigen/Dense>
 
-Eigen::MatrixXd Quadrature1D::getQuadXi(int q) const {
+Eigen::MatrixXd Quadrature1D::getQuadSig(int q) const {
 	if (q == 0 || q == 1) {
 		Eigen::MatrixXd xi (1);
 		xi << 0.500000000000000;
