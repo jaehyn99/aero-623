@@ -7,7 +7,7 @@ class FVFlux;
 class FVAdvectionFirstOrder: public FVResidual{
     public:
     FVAdvectionFirstOrder(std::shared_ptr<FVFlux> flux): _flux(flux) {}
-    Eigen::MatrixXd computeResidual(const StateMesh& u) const override;
+    Eigen::MatrixXd computeResidual(const StateMesh& u) const override { return Eigen::MatrixXd::Zero(1,1); };
 
     protected:
     std::shared_ptr<FVFlux> _flux;
