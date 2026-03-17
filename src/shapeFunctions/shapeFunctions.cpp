@@ -1,8 +1,8 @@
-#include "shapeFunctions/shapeFunctions.hpp"
+#include "ShapeFunctions.hpp"
 #include <iostream>
 #include <Eigen/Dense>
 
-Eigen::MatrixXd shapeFunctions::getShapeFuncCoeffs(int p_) const {
+Eigen::MatrixXd ShapeFunctions::getShapeFuncCoeffs(int p_) const {
 	if (p_ == 0) {
 		Eigen::MatrixXd phiCoeffs (1, 1);
 		phiCoeffs << 1;
@@ -52,7 +52,7 @@ Eigen::MatrixXd shapeFunctions::getShapeFuncCoeffs(int p_) const {
 	}
 }
 
-Eigen::MatrixXd shapeFunctions::getShapeFuncXiCoeffs(int p_) const {
+Eigen::MatrixXd ShapeFunctions::getShapeFuncXiCoeffs(int p_) const {
 	if (p_ == 0) {
 		Eigen::MatrixXd phiXiCoeffs (1, 1);
 		phiXiCoeffs << 0.0;
@@ -100,7 +100,7 @@ Eigen::MatrixXd shapeFunctions::getShapeFuncXiCoeffs(int p_) const {
 	}
 }
 
-Eigen::MatrixXd shapeFunctions::getShapeFuncEtaCoeffs(int p_) const {
+Eigen::MatrixXd ShapeFunctions::getShapeFuncEtaCoeffs(int p_) const {
 	if (p_ == 0) {
 		Eigen::MatrixXd phiEtaCoeffs (1, 1);
 		phiEtaCoeffs << 0.0;
@@ -148,7 +148,7 @@ Eigen::MatrixXd shapeFunctions::getShapeFuncEtaCoeffs(int p_) const {
 	}
 }
 
-Eigen::MatrixXd shapeFunctions::getRefLagrangePoints(int p_) const {
+Eigen::MatrixXd ShapeFunctions::getRefLagrangePoints(int p_) const {
 	Eigen::MatrixXd xiL((p_ + 1)*(p_ + 2)/2, 2);
 	Eigen::MatrixXd V(3, 2);
 	V << 0, 0,

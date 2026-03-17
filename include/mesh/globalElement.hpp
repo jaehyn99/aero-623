@@ -1,7 +1,7 @@
 #pragma once
 #include <Eigen/Dense>
 #include "mesh/referenceElement.hpp"
-#include "shapeFunctions/shapeFunctions.hpp"
+#include "ShapeFunctions/ShapeFunctions.hpp"
 #include "quadrature/femQuadrature.hpp"
 #include <iostream>
 

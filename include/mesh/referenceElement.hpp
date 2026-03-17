@@ -1,6 +1,6 @@
 #pragma once
 #include <Eigen/Dense>
-#include "shapeFunctions/shapeFunctions.hpp"
+#include "ShapeFunctions/ShapeFunctions.hpp"
 #include "quadrature/femQuadrature.hpp"
 #include <iostream>
 
@@ -16,7 +16,7 @@ class referenceElement {
 		int p, q, nQ, nL;
 		referenceElement(int p_, int q_) : p(p_), q(q_) {
 			p = p_; q = q_;
-			shapeFunctions shape(p_);
+			ShapeFunctions shape(p_);
 			femQuadrature quad(q_);
 			xiL = shape.getRefLagrangePoints(p_);
 			Eigen::MatrixXd phiCoeffs = shape.getShapeFuncCoeffs(p_); // Gets shape function and derivative coefficients
