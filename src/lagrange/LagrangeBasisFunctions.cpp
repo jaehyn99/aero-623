@@ -30,16 +30,16 @@ LagrangeBasisFunctions::LagrangeBasisFunctions(int p):
 
 	else if (_p == 3) {
 		// Variable order: 1, x, y, x^2, xy, y^2, x^3, x^2y, xy^2, y^3
-		_phi << 1, -11/2, -11/2, 	  9, 	18, 	9,  -9/2, -27/2, -27/2,  -9/2, 
-                0, 	   9, 	   0, -45/2, -45/2, 	0,  27/2, 	 27,  27/2, 	0, 
-                0,  -9/2, 	   0, 	 18,   9/2, 	0, -27/2, -27/2, 	 0,    	0, 
-                0, 	   1, 	   0,  -9/2, 	 0, 	0, 	 9/2, 	  0, 	 0,    	0, 
-                0, 	   0, 	   9, 	  0, -45/2, -45/2, 	   0,  27/2, 	27,  27/2, 
+		_phi << 1,  -5.5,   -5.5, 	  9, 	18, 	9,  -4.5, -13.5, -13.5,  -4.5, 
+                0, 	   9, 	   0, -22.5, -22.5, 	0,  13.5, 	 27,  13.5, 	0, 
+                0,  -4.5, 	   0, 	 18,   4.5, 	0, -13.5, -13.5, 	 0,    	0, 
+                0, 	   1, 	   0,  -4.5, 	 0, 	0, 	 4.5, 	  0, 	 0,    	0, 
+                0, 	   0, 	   9, 	  0, -22.5, -22.5, 	   0,  13.5, 	27,  13.5, 
                 0, 	   0, 	   0, 	  0, 	27, 	0, 	   0, 	-27,   -27,    	0, 
-                0, 	   0, 	   0, 	  0,  -9/2, 	0, 	   0,  27/2, 	 0,    	0, 
-                0, 	   0, 	-9/2, 	  0,   9/2,    18, 	   0, 	  0, -27/2, -27/2,
-                0, 	   0, 	   0, 	  0,  -9/2, 	0, 	   0, 	  0,  27/2, 	0,
-                0, 	   0, 	   1, 	  0, 	 0,  -9/2, 	   0, 	  0, 	 0,   9/2;
+                0, 	   0, 	   0, 	  0,  -4.5, 	0, 	   0,  13.5, 	 0,    	0, 
+                0, 	   0, 	-4.5, 	  0,   4.5,    18, 	   0, 	  0, -13.5, -13.5,
+                0, 	   0, 	   0, 	  0,  -4.5, 	0, 	   0, 	  0,  13.5, 	0,
+                0, 	   0, 	   1, 	  0, 	 0,  -4.5, 	   0, 	  0, 	 0,   4.5;
 	}
 
     if (_p >= 1){
@@ -66,43 +66,6 @@ LagrangeBasisFunctions::LagrangeBasisFunctions(int p):
         _phiy.col(4) = 2*_phi.col(8);
         _phiy.col(5) = 3*_phi.col(9);        
     }
-}
-
-double LagrangeBasisFunctions::funcEval(double x, double y, const Eigen::VectorXd& coeff){
-    assert(coeff.size() == _Np);
-    if (_p == 0) return coeff[0];
-    return evalPhi(x,y).dot(coeff);
-}
-
-Eigen::VectorXd LagrangeBasisFunctions::funcEval(double x, double y, const Eigen::MatrixXd& coeff){
-    assert(coeff.cols() == _Np);
-    if (_p == 0) return coeff.col(0);
-    return coeff*evalPhi(x,y); // result is a Ns-by-1 vector
-}
-
-double LagrangeBasisFunctions::funcXEval(double x, double y, const Eigen::VectorXd& coeff){
-    assert(coeff.size() == _Np);
-    if (_p == 0) return 0;
-    return evalPhiX(x,y).dot(coeff);
-}
-
-Eigen::VectorXd LagrangeBasisFunctions::funcXEval(double x, double y, const Eigen::MatrixXd& coeff){
-    assert(coeff.rows() == _Np);
-    if (_p == 0) return coeff.row(0).transpose();
-    return coeff*evalPhiX(x,y); // result is a Ns-by-1 vector
-}
-
-double LagrangeBasisFunctions::funcYEval(double x, double y, const Eigen::VectorXd& coeff){
-    assert(coeff.size() == _Np);
-    if (_p == 0) return 0;
-    // Reduce coeff to obtain only the coefficients that affect 
-    return evalPhiY(x,y).dot(coeff);
-}
-
-Eigen::VectorXd LagrangeBasisFunctions::funcYEval(double x, double y, const Eigen::MatrixXd& coeff){
-    assert(coeff.rows() == _Np);
-    if (_p == 0) return coeff.row(0).transpose();
-    return coeff*evalPhiY(x,y); // result is a Ns-by-1 vector
 }
 
 Eigen::VectorXd LagrangeBasisFunctions::evalPhi(double x, double y) const noexcept{
@@ -173,4 +136,41 @@ Eigen::Matrix2Xd LagrangeBasisFunctions::getLagrangeNodes() const noexcept{
 		}
 	}
 	return xiL;
+}
+
+double LagrangeBasisFunctions::funcEval(double x, double y, const Eigen::VectorXd& coeff){
+    assert(coeff.size() == _Np);
+    if (_p == 0) return coeff[0];
+    return evalPhi(x,y).dot(coeff);
+}
+
+Eigen::VectorXd LagrangeBasisFunctions::funcEval(double x, double y, const Eigen::MatrixXd& coeff){
+    assert(coeff.cols() == _Np);
+    if (_p == 0) return coeff.col(0);
+    return coeff*evalPhi(x,y); // result is a Ns-by-1 vector
+}
+
+double LagrangeBasisFunctions::funcXEval(double x, double y, const Eigen::VectorXd& coeff){
+    assert(coeff.size() == _Np);
+    if (_p == 0) return 0;
+    return evalPhiX(x,y).dot(coeff);
+}
+
+Eigen::VectorXd LagrangeBasisFunctions::funcXEval(double x, double y, const Eigen::MatrixXd& coeff){
+    assert(coeff.rows() == _Np);
+    if (_p == 0) return coeff.row(0).transpose();
+    return coeff*evalPhiX(x,y); // result is a Ns-by-1 vector
+}
+
+double LagrangeBasisFunctions::funcYEval(double x, double y, const Eigen::VectorXd& coeff){
+    assert(coeff.size() == _Np);
+    if (_p == 0) return 0;
+    // Reduce coeff to obtain only the coefficients that affect 
+    return evalPhiY(x,y).dot(coeff);
+}
+
+Eigen::VectorXd LagrangeBasisFunctions::funcYEval(double x, double y, const Eigen::MatrixXd& coeff){
+    assert(coeff.rows() == _Np);
+    if (_p == 0) return coeff.row(0).transpose();
+    return coeff*evalPhiY(x,y); // result is a Ns-by-1 vector
 }

@@ -17,11 +17,12 @@ class Face{
     double length() const noexcept{ return _length; }
     // std::size_t Q() const noexcept{ return _Q; }
     std::string title() const noexcept{ return _title; }
-    virtual Eigen::Vector2d normal(std::size_t) const noexcept = 0; // get the normal vector at the specified quadrature point
+    virtual Eigen::Vector2d normal(std::size_t=0) const noexcept = 0; // get the normal vector at the specified quadrature point
+    // virtual double detJ(std::size_t) const noexcept = 0; // get the Jacobian determinant (ds/dsigma) at the specified quadrature point
     
     protected:
     Eigen::Vector2i _pointID; // point indices
-    Eigen::Vector2i _elemID; // neighboring element indices
+    Eigen::Vector2i _elemID = Eigen::Vector2i::Constant(-1); // neighboring element indices, fill in during construction of TriangularMesh
     double _length;
     // std::size_t _Q; // number of Lagrange nodes to approximate geometry
     std::string _title;

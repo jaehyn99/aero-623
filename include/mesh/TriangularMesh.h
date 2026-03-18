@@ -39,22 +39,11 @@ class TriangularMesh{
     double area(std::size_t elemID) const noexcept;
     // Eigen::Vector2d centroid(std::size_t elemID){ return _elems[elemID]._centroid; }
 
-    // I2E and B2E are both zero-based, add one if they need to be one-based
-    const auto& I2E() const noexcept{ return _I2E; }
-    const auto& B2E() const noexcept{ return _B2E; }
-    const auto& In() const noexcept{ return _In; }
-    const auto& Bn() const noexcept{ return _Bn; }
-
     protected:
     std::vector<Eigen::Vector2d> _nodes;
     std::vector<std::unique_ptr<Face>> _faces;
     std::vector<std::unique_ptr<Element>> _elems;
     std::unique_ptr<CubicSpline> _lower, _upper;
-
-    Eigen::Array<int, Eigen::Dynamic, 4, Eigen::RowMajor> _I2E;
-    Eigen::Array<int, Eigen::Dynamic, 3, Eigen::RowMajor> _B2E;
-    Eigen::Array<double, Eigen::Dynamic, 2, Eigen::RowMajor> _In;
-    Eigen::Array<double, Eigen::Dynamic, 2, Eigen::RowMajor> _Bn;
 
     std::vector<std::string> split(std::string& str) const noexcept;
 };

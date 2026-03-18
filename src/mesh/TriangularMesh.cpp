@@ -2,6 +2,9 @@
 #include "CubicSpline.h"
 #include "CurvedElement.h"
 #include "CurvedFace.h"
+#include "GaussLegendre1D.h"
+#include "GaussLegendre2D.h"
+#include "LagrangeBasisFunctions.h"
 #include "LinearElement.h"
 #include "LinearFace.h"
 
@@ -42,6 +45,7 @@ TriangularMesh::TriangularMesh(const std::string& fileName, std::size_t p, std::
     _faces.reserve(nElemTot); // not exact size, only an approximate
 
     splitNextLine();
+    std::vector<double> Xl, Yl, Xu, Yu;
     std::size_t nBGroup = std::stoi(v[0]); // number of boundary groups
     for (std::size_t i = 0; i < nBGroup; i++){
         splitNextLine();
@@ -53,39 +57,87 @@ TriangularMesh::TriangularMesh(const std::string& fileName, std::size_t p, std::
             std::size_t ind2 = std::stoi(v[1]) - 1;
             Eigen::Vector2i pointID{ind1, ind2};
             double length = (_nodes[ind1] - _nodes[ind2]).lpNorm<2>();
-            if (q == 1 || (title != "Curve1" && title != "Curve5")){
+            if (q == 1 || (title != "Curve1" && title != "Curve5"))
                 _faces.emplace_back(std::make_unique<LinearFace>(pointID, length, title));
+            else{
+                _faces.emplace_back(std::make_unique<CurvedFace>(pointID, length, q, title));
+                if (title == "Curve1"){
+                    if (Xu.empty()){ // no points have been added into curve1
+                        Xu.push_back(_nodes[ind1].x());
+                        Yu.push_back(_nodes[ind1].y());
+                    }
+                    Xu.push_back(_nodes[ind2].x());
+                    Yu.push_back(_nodes[ind2].y());                   
+                }
+                else{
+                    if (Xl.empty()){ // no points have been added into curve5
+                        Xl.push_back(_nodes[ind1].x());
+                        Yl.push_back(_nodes[ind1].y());
+                    }
+                    Xl.push_back(_nodes[ind2].x());
+                    Yl.push_back(_nodes[ind2].y());                     
+                }
             }
-            else _faces.emplace_back(std::make_unique<CurvedFace>(pointID, length, q, title));
         }
     }
 
-    // Curved edges treatmeat
+    // Treatment of curve edges - do a cubic spline interpolation
     if (q > 1){
-        for (auto& face: _faces){
-            if (face->title() == "Curve1" || face->title() == "Curve5"){
-                std::cout << face->title() << ": ";
-                auto points = face->pointID();
-                std::cout << "[" << _nodes[points[0]].transpose() << "], ";
-                std::cout << "[" << _nodes[points[1]].transpose() << "]" << std::endl;
+        Eigen::VectorXd Xl2 = Eigen::Map<Eigen::VectorXd>(Xl.data(), Xl.size());
+        Eigen::VectorXd Yl2 = Eigen::Map<Eigen::VectorXd>(Yl.data(), Yl.size());
+        Eigen::VectorXd Xu2 = Eigen::Map<Eigen::VectorXd>(Xu.data(), Xu.size());
+        Eigen::VectorXd Yu2 = Eigen::Map<Eigen::VectorXd>(Yu.data(), Yu.size());
+        _lower = std::make_unique<CubicSpline>(Xl2, Yl2);
+        _upper = std::make_unique<CubicSpline>(Xu2, Yu2);
+        GaussLegendre1D<1> GL(r);
+
+        int iL = 0, iU = 0;
+        auto& Sl = _lower->S();
+        auto& Su = _upper->S();
+        for (const auto& face: _faces){
+            if (face->title() != "Curve1" && face->title() != "Curve5") continue;
+            CurvedFace* cFace = dynamic_cast<CurvedFace*>(face.get());
+            double s0 = face->title() == "Curve1" ? Su[iU] : Sl[iL];
+            double s1 = face->title() == "Curve1" ? Su[iU+1] : Sl[iL+1];
+            cFace->_length = s1-s0; // assign length
+
+            // Generate the Lagrange nodes for geometry appoximation
+            auto lnodes = Eigen::VectorXd::LinSpaced(q+1, s0, s1);
+            cFace->_xL.resize(Eigen::NoChange, lnodes.size()-2); // ignoring the boundary nodes
+            for (int i = 1; i < lnodes.size()-1; i++){
+                double s = lnodes[i];
+                cFace->_xL.col(i-1) = face->title() == "Curve1" ? _upper->eval(s) : _lower->eval(s);
             }
+
+            // Generate the quadrature nodes
+            auto qnodes = GL.getNodes({s0, s1});
+            int NQ = qnodes.size(); // number of quadrature nodes
+            // Resize these matrices so that the relevant info at each quadrature node can be stored
+            cFace->_xq.resize(Eigen::NoChange, NQ);
+            cFace->_n.resize(Eigen::NoChange, NQ);
+            for (int i = 0; i < NQ; i++){
+                double s = qnodes[i];
+                Eigen::Vector2d N;
+                if (face->title() == "Curve1"){
+                    cFace->_xq.col(i) = _upper->eval(s); // Quadrature node position
+                    // Outward normal vector
+                    N = _upper->evalDeriv2(s).normalized(); 
+                    if (N.y() > 0) N *= -1; // normals on the "upper" curve point down
+                } else{
+                    cFace->_xq.col(i) = _lower->eval(s); // Quadrature node position
+                    // Outward normal vector
+                    N = _upper->evalDeriv2(s).normalized(); 
+                    if (N.y() < 0) N *= -1; // normals on the "lower" curve point up              
+                }
+                cFace->_n.col(i) = N;
+            }
+            if (face->title() == "Curve1") iU++;
+            else iL++;
         }
     }
 
-    // Fill in the elements, interior nodes, and connectivity matrices
-    Eigen::Index bcount = 0;
+    // Fill in the elements, interior nodes, and connectivity info
     _elems.reserve(nElemTot);
-    _B2E.resize(_faces.size(), Eigen::NoChange); // _faces only contains boundary and periodic bases, for now.
-
-    std::vector<int> elemL(_faces.size(), -1);
-    std::vector<int> faceL(_faces.size(), -1);
-    std::vector<int> elemR(_faces.size(), -1);
-    std::vector<int> faceR(_faces.size(), -1);
-
-    elemL.reserve(nElemTot);
-    faceL.reserve(nElemTot);
-    elemR.reserve(nElemTot);
-    faceR.reserve(nElemTot);    
 
     while (nElemTot > 0){
         splitNextLine();
@@ -93,7 +145,7 @@ TriangularMesh::TriangularMesh(const std::string& fileName, std::size_t p, std::
         // std::size_t ord = std::stoi(v[1]);
         // std::string basis = v[2];
         nElemTot -= nElem;
-        for (std::size_t i = 0; i < nElem; i++){
+        for (int i = 0; i < int(nElem); i++){
             splitNextLine();
             std::size_t ind1 = std::stoi(v[0]) - 1;
             std::size_t ind2 = std::stoi(v[1]) - 1;
@@ -104,11 +156,11 @@ TriangularMesh::TriangularMesh(const std::string& fileName, std::size_t p, std::
             //Eigen::Vector2d centroid{ (_nodes[ind1].x() + _nodes[ind2].x() + _nodes[ind3].x())/3, (_nodes[ind1].y() + _nodes[ind2].y() + _nodes[ind3].y())/3 };
 
             bool isCurvedElement = false;
-            for (std::size_t j = 0; j < 3; j++){
+            for (int j = 0; j < 3; j++){
                 // Look if its faces have already been added to the list of faces
                 Eigen::Vector2i facePointID{pointID[(j+1)%3], pointID[(j+2)%3]};
                 std::unique_ptr<Face> iface = std::make_unique<LinearFace>(facePointID, 0.0);
-                auto it = std::find(_faces.cbegin(), _faces.cend(), iface);
+                auto it = std::find_if(_faces.cbegin(), _faces.cend(), [&iface](const auto& other){ return *iface == *other; });
                 std::size_t ind = it - _faces.cbegin();
                 faceID[j] = ind;
 
@@ -116,56 +168,118 @@ TriangularMesh::TriangularMesh(const std::string& fileName, std::size_t p, std::
                 if (it == _faces.cend()){
                     iface->_length = (_nodes[pointID[(j+1)%3]] - _nodes[pointID[(j+2)%3]]).lpNorm<2>();
                     length[j] = iface->_length;
+                    iface->_elemID[0] = i;
                     _faces.push_back(std::move(iface));
-
-                    elemL.push_back(-1);
-                    faceL.push_back(-1);
-                    elemR.push_back(-1);
-                    faceR.push_back(-1);
-                } else length[j] = _faces[ind]->length();
-                isCurvedElement = isCurvedElement || _faces[ind]->isCurvedFace();
-
-                // Determine if the face is on the boundary, then update B2E because it's easier
-                if (_faces[ind]->isBoundaryFace()){
-                    _B2E(bcount, 0) = i;
-                    _B2E(bcount, 1) = j;
-                    if (_faces[ind]->title() == "Curve1") _B2E(bcount, 2) = 0;
-                    else if (_faces[ind]->title() == "Curve3") _B2E(bcount, 2) = 1;
-                    else if (_faces[ind]->title() == "Curve5") _B2E(bcount, 2) = 2;
-                    else _B2E(bcount, 2) = 3;
-                    bcount++;
                 } else{
-                    // Stores these to update I2E later
-                    if (elemL[ind] == -1){
-                        // Face is new and hasn't been added
-                        elemL[ind] = i;
-                        faceL[ind] = j;
-                    } else{
-                        // elemL and faceL have element info but not elemR and faceR
-                        elemR[ind] = i;
-                        faceR[ind] = j;
-                        if (elemL[ind] > elemR[ind]){
-                            std::swap(elemL[ind], elemR[ind]);
-                            std::swap(faceL[ind], faceR[ind]);
-                        }
+                    length[j] = _faces[ind]->length();
+                    if (_faces[ind]->_elemID[0] == -1) _faces[ind]->_elemID[0] = i;
+                    else{
+                        _faces[ind]->_elemID[1] = i;
+                        if (_faces[ind]->_elemID[0] > i) std::swap(_faces[ind]->_elemID[0], _faces[ind]->_elemID[1]);
                     }
                 }
+                if (_faces[ind]->isCurvedFace()) isCurvedElement = true;
             }
 
-            double s = (length[0]+length[1]+length[2])/2;
-            double area = std::sqrt(s*(s-length[0])*(s-length[1])*(s-length[2]));
-            if (isCurvedElement){
-                _elems.emplace_back(std::make_unique<CurvedElement>(pointID, faceID, area));
-            } else{
+            if (!isCurvedElement){
+                double s = (length[0]+length[1]+length[2])/2;
+                double area = std::sqrt(s*(s-length[0])*(s-length[1])*(s-length[2]));
                 Eigen::Matrix2d J;
                 J.col(0) = node(ind2) - node(ind1);
                 J.col(1) = node(ind3) - node(ind1);
                 _elems.emplace_back(std::make_unique<LinearElement>(pointID, faceID, area, J));
+            } else{
+                // Dealing with a curved element, compute the internal node and Jacobians
+                auto cElem = std::make_unique<CurvedElement>(pointID, faceID, 0.0);
+                // First, create a matrix of the 10 Lagrange nodes (q=3)
+                Eigen::Matrix<double, 2, 10> Phi; // Lagrange nodes
+                Phi.col(0) = _nodes[cElem->_pointID[0]];
+                Phi.col(3) = _nodes[cElem->_pointID[1]];
+                Phi.col(9) = _nodes[cElem->_pointID[2]];
+
+                // Computes the internal node as the centroid of the surrounding 6 nodes
+                for (int jj = 0; jj < 3; jj++){
+                    const auto& face = _faces[cElem->_faceID[jj]];
+                    if (face->isCurvedFace()){
+                        // Gets the two internal nodes on a curved face
+                        CurvedFace* cFace = dynamic_cast<CurvedFace*>(face.get());
+                        cElem->_internal += cFace->_xL.col(0);
+                        cElem->_internal += cFace->_xL.col(1);
+
+                        int ind1, ind2, ind3, ind4; // indices of the nodes along this edge
+                        if (jj == 0){
+                            ind1 = 3;
+                            ind2 = 6;
+                            ind3 = 8;
+                            ind4 = 9;
+                        } else if (jj == 1){
+                            ind1 = 0;
+                            ind2 = 4;
+                            ind3 = 7;
+                            ind4 = 9;
+                        } else{
+                            ind1 = 0;
+                            ind2 = 1;
+                            ind3 = 2;
+                            ind4 = 4;
+                        }
+
+                        if ((Phi(0,ind4)-Phi(0,ind1)) * (cFace->_xL(0,1)-cFace->_xL(0,0)) < 0){
+                            std::swap(cFace->_pointID(0), cFace->_pointID(1));
+                            cFace->_xL.col(0).swap(cFace->_xL.col(1));
+                        }
+                        Phi.col(ind2) = cFace->_xL.col(0);
+                        Phi.col(ind3) = cFace->_xL.col(1);
+                    } else{
+                        // Gets the two internal nodes on a linear face
+                        int ind1 = (jj+1)%3;
+                        int ind2 = (jj+2)%3;
+                        Eigen::Vector2d node1 = _nodes[cElem->_pointID[std::min(ind1, ind2)]];
+                        Eigen::Vector2d node2 = _nodes[cElem->_pointID[std::max(ind1, ind2)]];
+                        Eigen::Vector2d diff = node2-node1;
+                        Eigen::Vector2d Lnode1 = node1 + diff/3;
+                        Eigen::Vector2d Lnode2 = Lnode1 + diff/3;
+                        cElem->_internal += Lnode1;
+                        cElem->_internal += Lnode2;
+                        
+                        if (jj == 0){
+                            Phi.col(6) = Lnode1;
+                            Phi.col(8) = Lnode2;
+                        } else if (jj == 1){
+                            Phi.col(4) = Lnode1;
+                            Phi.col(7) = Lnode2;
+                        } else{
+                            Phi.col(1) = Lnode1;
+                            Phi.col(2) = Lnode2;
+                        }
+                    }
+                }
+                cElem->_internal /= 6;
+                Phi.col(5) = cElem->_internal;
+
+                // Compute the Jacobian at the quadrature nodes
+                GaussLegendre2D<1> GL2(r);
+                auto qnodes = GL2.getNodes();
+                auto qweights = GL2.getWeights();
+                int NQ = qweights.size();
+                cElem->_area = 0.0;
+                cElem->_J.resize(NQ, Eigen::Matrix2d::Zero());
+                cElem->_detJ.resize(NQ);
+
+                LagrangeBasisFunctions phis(q);
+                for (int ii = 0; ii < NQ; ii++){
+                    int Nq = (q+1)*(q+2)/2;
+                    Eigen::MatrixX2d dphi(Nq, 2);
+                    dphi.col(0) = phis.evalPhiX(qnodes[2*ii], qnodes[2*ii+1]);
+                    dphi.col(1) = phis.evalPhiY(qnodes[2*ii], qnodes[2*ii+1]);
+                    for (int jj = 0; jj < Nq; jj++) cElem->_J[ii] += Phi.col(jj)*dphi.row(jj);
+                    cElem->_detJ[ii] = std::abs(cElem->_J[ii].determinant());
+                    cElem->_area += cElem->_detJ[ii]*qweights[ii];
+                }
+                _elems.emplace_back(std::move(cElem));
             }
         }
     }
-    
-    _B2E.conservativeResize(bcount, Eigen::NoChange);
 
     // Periodic boundaries, manually, only works on this one mesh
     std::deque<int> curve2Faces, curve4Faces, curve6Faces, curve8Faces;
@@ -182,100 +296,44 @@ TriangularMesh::TriangularMesh(const std::string& fileName, std::size_t p, std::
     for (std::size_t i = 0; i < curve2Faces.size(); i++){
         int curve2ID = curve2Faces[i];
         int curve4ID = curve4Faces[i];
-
-        if (elemL[curve2ID] < elemL[curve4ID]){
-            // Left element is on row curve2ID
-            elemR[curve2ID] = elemL[curve4ID];
-            elemL[curve4ID] = elemL[curve2ID];
-            elemR[curve4ID] = elemR[curve2ID];
-
-            faceR[curve2ID] = faceL[curve4ID];
-            faceL[curve4ID] = faceL[curve2ID];
-            faceR[curve4ID] = faceR[curve2ID];
-        } else{
-            // Left element is on row curve4ID
-            elemR[curve4ID] = elemL[curve2ID];
-            elemL[curve2ID] = elemL[curve4ID];
-            elemR[curve2ID] = elemR[curve4ID];
-
-            faceR[curve4ID] = faceL[curve2ID];
-            faceL[curve2ID] = faceL[curve4ID];
-            faceR[curve2ID] = faceR[curve4ID]; 
-        }
+        _faces[curve2ID]->_pointID[1] = _faces[curve4ID]->_pointID[0];
+        _faces[curve4ID]->_pointID[1] = _faces[curve2ID]->_pointID[0];
+        if (_faces[curve2ID]->_pointID[0] > _faces[curve2ID]->_pointID[1]) std::swap(_faces[curve2ID]->_pointID[0], _faces[curve2ID]->_pointID[1]);
+        if (_faces[curve4ID]->_pointID[0] > _faces[curve4ID]->_pointID[1]) std::swap(_faces[curve4ID]->_pointID[0], _faces[curve4ID]->_pointID[1]);
     }
 
     // Matching curve6 and curve8
     for (std::size_t i = 0; i < curve6Faces.size(); i++){
         int curve6ID = curve6Faces[i];
         int curve8ID = curve8Faces[i];
+        _faces[curve6ID]->_pointID[1] = _faces[curve8ID]->_pointID[0];
+        _faces[curve8ID]->_pointID[1] = _faces[curve6ID]->_pointID[0];
+        if (_faces[curve6ID]->_pointID[0] > _faces[curve8ID]->_pointID[1]) std::swap(_faces[curve6ID]->_pointID[0], _faces[curve6ID]->_pointID[1]);
+        if (_faces[curve8ID]->_pointID[0] > _faces[curve6ID]->_pointID[1]) std::swap(_faces[curve8ID]->_pointID[0], _faces[curve8ID]->_pointID[1]);
+    }
 
-        if (elemL[curve6ID] < elemL[curve8ID]){
-            // Left element is on row curve6ID
-            elemR[curve6ID] = elemL[curve8ID];
-            elemL[curve8ID] = elemL[curve6ID];
-            elemR[curve8ID] = elemR[curve6ID];
+    // Update normal vectors on each edge, always pointing from L to R
+    for (int i = 0; i < int(numFaces()); i++){
+        // Construct a unit normal vector
+        if (LinearFace* lFace = dynamic_cast<LinearFace*>(_faces[i].get())){
+            const Element& elem = *_elems[lFace->_elemID[0]];
 
-            faceR[curve6ID] = faceL[curve8ID];
-            faceL[curve8ID] = faceL[curve6ID];
-            faceR[curve8ID] = faceR[curve6ID];
-        } else{
-            // Left element is on row curve8ID
-            elemR[curve8ID] = elemL[curve6ID];
-            elemL[curve6ID] = elemL[curve8ID];
-            elemR[curve6ID] = elemR[curve8ID];
+            std::size_t localFaceID;
+            if (elem._pointID[0] == i) localFaceID = 0;
+            else if (elem._pointID[1] == i) localFaceID = 1;
+            else localFaceID = 2;
 
-            faceR[curve8ID] = faceL[curve6ID];
-            faceL[curve6ID] = faceL[curve8ID];
-            faceR[curve6ID] = faceR[curve8ID];
+            Eigen::Vector2d edge = node(lFace->_pointID[1]) - node(lFace->_pointID[0]);
+            Eigen::Vector2d normal = Eigen::Vector2d{-edge[1], edge[0]};
+            normal.normalize();
+
+            // Find the remaining point on the "left" element and direct normal away from it
+            const Eigen::Vector2d& p1 = node(elem._pointID[localFaceID]); // Point not on this edge
+            const Eigen::Vector2d& p2 = node(elem._pointID[(localFaceID+1)%3]); // One of the points on this edge
+            if ((p1-p2).dot(normal) > 0) normal *= -1;
+            lFace->_n = normal;
         }
     }
-
-    // Update I2E
-    Eigen::Index icount = 0;
-    _I2E.resize(_faces.size(), Eigen::NoChange);
-    for (std::size_t i = 0; i < _faces.size(); i++){
-        if (elemL[i] == -1) continue;
-        _I2E(icount, 0) = elemL[i];
-        _I2E(icount, 1) = faceL[i];
-        _I2E(icount, 2) = elemR[i];
-        _I2E(icount, 3) = faceR[i];        
-    }
-    _I2E.resize(icount, Eigen::NoChange);
-
-    // // Update normal vectors on each edge, always pointing from L to R
-    // _In.resize(icount, Eigen::NoChange);
-    // for (Eigen::Index i = 0; i < icount; i++){
-    //     // Consturct a unit normal vector
-    //     const Element& elem = *_elems[_I2E(i,0)];
-    //     std::size_t localFaceID = _I2E(i,1);
-    //     const Face& face = _faces[elem._faceID[localFaceID]];
-    //     Eigen::Vector2d edge = node(face._pointID[1]) - node(face._pointID[0]);
-    //     Eigen::Vector2d normal = Eigen::Vector2d{-edge[1], edge[0]};
-    //     normal.normalize();
-
-    //     // Find the remaining point on the "left" element and direct normal away from it
-    //     const Eigen::Vector2d& p1 = node(elem._pointID[localFaceID]); // Point not on this edge
-    //     const Eigen::Vector2d& p2 = node(elem._pointID[(localFaceID+1)%3]); // One of the points on this edge
-    //     if ((p1-p2).dot(normal) > 0) normal *= -1;
-    //     _In.row(i) = normal.transpose();
-    // }
-
-    // _Bn.resize(bcount, Eigen::NoChange);
-    // for (Eigen::Index i = 0; i < bcount; i++){
-    //     // Consturct a unit normal vector
-    //     const Element& elem = *_elems[_B2E(i,0)];
-    //     std::size_t localFaceID = _B2E(i,1);
-    //     const Face& face = _faces[elem._faceID[localFaceID]];
-    //     Eigen::Vector2d edge = node(face._pointID[1]) - node(face._pointID[0]);
-    //     Eigen::Vector2d normal = Eigen::Vector2d{-edge[1], edge[0]};
-    //     normal.normalize();
-
-    //     // Find the remaining point on the "left" element and direct normal away from it
-    //     const Eigen::Vector2d& p1 = node(elem._pointID[localFaceID]); // Point not on this edge
-    //     const Eigen::Vector2d& p2 = node(elem._pointID[(localFaceID+1)%3]); // One of the points on this edge
-    //     if ((p1-p2).dot(normal) > 0) normal *= -1;
-    //     _Bn.row(i) = normal.transpose();
-    // }
 }
 
 double TriangularMesh::length(std::size_t faceID) const noexcept{ return _faces[faceID]->_length; }

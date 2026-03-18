@@ -3,11 +3,14 @@
 #include <fstream>
 
 #include "Constants.h"
+#include "Element.h"
+#include "Face.h"
 #include "FVAdvectionFirstOrder.h"
 #include "FVAdvectionSecondOrder.h"
 #include "FVSteadySolver.h"
 #include "FVUnsteadySolver.h"
-#include "GaussLegendre.h"
+#include "GaussLegendre1D.h"
+#include "GaussLegendre2D.h"
 #include "HLLEFlux.h"
 #include "HybridWalkPNGrad.h"
 #include "InletBC.h"
@@ -31,6 +34,29 @@ int main() {
     std::size_t q = 3;
     std::size_t r = 2*p+1;
     mesh = std::make_shared<TriangularMesh>("projects/Project-2/mesh_refined_2394.gri", p, q, r);
+    double maxArea = 0;
+    int ind;
+    for (int i = 0; i < mesh->numElems(); i++){
+        if (mesh->area(i) > maxArea){
+            maxArea = mesh->area(i);
+            ind = i;
+        }
+    }
+    std::cout << maxArea << " occuring at ind " << ind << std::endl;
+
+
+    // for (int i = 0; i < mesh->numElems(); i++){
+    //     const Element& elem = mesh->elem(i);
+    //     if (elem.isCurvedElement()){
+    //         std::cout << "Element #" << i << " is curved. It contains Faces ";
+            
+    //         auto faceID = elem.faceID();
+    //         std::cout << faceID[0] << ", " << faceID[1] << " and " << faceID[2] << ". ";
+    //         for (int id: faceID){
+    //             if (mesh->face(id).isCurvedFace()) std::cout << "Face " << id << " is curved." << std::endl;
+    //         }
+    //     }
+    // }
 
     // do{
     //     std::cout << "Enter mesh name (\"coarse\", \"fine\", \"finer\", or \"finest\"): ";
