@@ -14,6 +14,8 @@ class StateMesh{
     StateMesh(std::shared_ptr<TriangularMesh>, std::vector<std::shared_ptr<BoundaryCondition>>&, Eigen::MatrixXd&&, Eigen::Index=1); //, std::shared_ptr<FVGradient> =nullptr);
     StateMesh(std::shared_ptr<TriangularMesh>, std::vector<std::shared_ptr<BoundaryCondition>>&, Eigen::Index=4, Eigen::Index=1, double=1.0); //, std::shared_ptr<FVGradient> =nullptr);
     
+    Eigen::Index p() const noexcept{ return _p; }
+    Eigen::Index Np() const noexcept{ return _Np; }
     Eigen::Index size() const noexcept{ return _stateMesh.size(); }
     Eigen::Index cellCount() const noexcept{ return _stateMesh.cols(); }
     Eigen::Index stateCount() const noexcept{ return _stateMesh.rows(); }
@@ -24,8 +26,8 @@ class StateMesh{
     double& operator()(Eigen::Index s, Eigen::Index e) noexcept{ return _stateMesh(s,e); }
     const double& operator()(Eigen::Index s, Eigen::Index e) const noexcept{ return _stateMesh(s,e); }
     // View to a cell
-    Eigen::MatrixXd::BlockXpr cell(Eigen::Index e) noexcept{ return _stateMesh.block(e*_Np, 0, _Np, 4); }
-    Eigen::MatrixXd::ConstBlockXpr cell(Eigen::Index e) const noexcept{ return _stateMesh.block(e*_Np, 0, _Np, 4); }
+    auto cell(Eigen::Index e) noexcept{ return _stateMesh.middleCols(e*_Np, _Np); }
+    auto cell(Eigen::Index e) const noexcept{ return _stateMesh.middleCols(e*_Np, _Np); }
     // View to a state across all cells
     Eigen::MatrixXd::RowXpr state(Eigen::Index s) noexcept{ return _stateMesh.row(s); }
     Eigen::MatrixXd::ConstRowXpr state(Eigen::Index s) const noexcept{ return _stateMesh.row(s); }

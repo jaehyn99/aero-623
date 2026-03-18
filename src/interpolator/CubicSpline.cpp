@@ -1,5 +1,5 @@
-/*#include "CubicSpline.h"
-#include "GaussKronrod.h"
+#include "CubicSpline.h"
+#include "GaussLegendre1D.h"
 #include "ProjectedNewton.h"
 #include "TridiagonalMatrix.h"
 
@@ -23,7 +23,7 @@ CubicSpline::CubicSpline(const Eigen::VectorXd& X, const Eigen::VectorXd& Y, dou
     }
 
     double err = 1;
-    GaussKronrod<> GK15(7);
+    GaussLegendre1D<> GL(7);
     auto arcLength = [this](double s){ return evalDeriv(s).norm(); };
    
     while (err > _tol){
@@ -32,7 +32,7 @@ CubicSpline::CubicSpline(const Eigen::VectorXd& X, const Eigen::VectorXd& Y, dou
 
         Eigen::VectorXd trueS(sz);
         trueS[0] = 0;
-        for (Eigen::Index i = 1; i < sz; i++) trueS[i] = trueS[i-1] + GK15.integrate(arcLength, {_S[i-1], _S[i]});
+        for (Eigen::Index i = 1; i < sz; i++) trueS[i] = trueS[i-1] + GL.integrate(arcLength, {_S[i-1], _S[i]});
 
         err = std::sqrt((trueS - _S).squaredNorm() / trueS.squaredNorm());
         _S = trueS;
@@ -140,4 +140,4 @@ Eigen::VectorXd CubicSpline::slopes(const Eigen::VectorXd& r) noexcept{
 
     M.solve(dr);
     return dr;
-}*/
+}

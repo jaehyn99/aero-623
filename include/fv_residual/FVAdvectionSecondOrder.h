@@ -9,7 +9,7 @@ class FVFlux;
 class FVAdvectionSecondOrder: public FVResidual{
     public:
     FVAdvectionSecondOrder(std::shared_ptr<FVFlux> flux, bool limiter=true): _flux(flux), _limiter(limiter) {}
-    Eigen::MatrixXd computeResidual(const StateMesh& u) const override;
+    Eigen::MatrixXd computeResidual(const StateMesh& u) const override { return Eigen::MatrixXd::Zero(1,1); };
 
     protected:
     std::shared_ptr<FVFlux> _flux;

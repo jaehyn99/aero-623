@@ -1,4 +1,4 @@
-1. Evaluate shape functions:
+<!-- 1. Evaluate shape functions:
    shape1D(sig, q, &phi)
 
 2. Evaluate derivatives:
@@ -17,4 +17,4 @@
 
 6. Compute normal:
    n = [ty, -tx]   or   n = [-ty, tx]
-   choose the sign so the normal is outward
+   choose the sign so the normal is outward -->

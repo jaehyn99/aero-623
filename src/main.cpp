@@ -3,11 +3,14 @@
 #include <fstream>
 
 #include "Constants.h"
+#include "Element.h"
+#include "Face.h"
 #include "FVAdvectionFirstOrder.h"
 #include "FVAdvectionSecondOrder.h"
 #include "FVSteadySolver.h"
 #include "FVUnsteadySolver.h"
-#include "GaussLegendre.h"
+#include "GaussLegendre1D.h"
+#include "GaussLegendre2D.h"
 #include "HLLEFlux.h"
 #include "hybridWalkPNGrad.h"
 #include "InletBC.h"
@@ -21,18 +24,30 @@
 #include "StateMesh.h"
 #include "TriangularMesh.h"
 
+#include "LagrangeBasisFunctions.h"
+
 int main() {
-    // std::shared_ptr<TriangularMesh> mesh;
-    // std::string meshName;
+
+    std::shared_ptr<TriangularMesh> mesh;
+    std::string meshName;
+    std::size_t p = 2;
+    std::size_t q = 3;
+    std::size_t r = 2*p+1;
+    mesh = std::make_shared<TriangularMesh>("projects/Project-2/mesh_refined_2394.gri", p, q, r);
+    const auto& ref = mesh->reference();
+    std::cout << ref.edgePhi(0) << std::endl;
+
     // do{
     //     std::cout << "Enter mesh name (\"coarse\", \"fine\", \"finer\", or \"finest\"): ";
     //     std::cin >> meshName;
     //     std::transform(meshName.begin(), meshName.end(), meshName.begin(), [](unsigned char c){ return std::tolower(c); });
     // } while (meshName != "coarse" && meshName != "fine" && meshName != "finer" && meshName != "finest");
-    // if (meshName == "coarse") mesh = std::make_shared<TriangularMesh>("projects/Project-2/mesh_refined_2394.gri");
-    // else if (meshName == "fine") mesh = std::make_shared<TriangularMesh>("projects/Project-2/meshGlobalRefined1.gri");
-    // else if (meshName == "finer") mesh = std::make_shared<TriangularMesh>("projects/Project-2/meshGlobalRefined2.gri");
-    // else mesh = std::make_shared<TriangularMesh>("projects/Project-2/meshGlobalRefined3.gri");
+    // if (meshName == "coarse") mesh = std::make_shared<TriangularMesh>("projects/Project-2/mesh_refined_2394.gri", p, q, r);
+    // else if (meshName == "fine") mesh = std::make_shared<TriangularMesh>("projects/Project-2/meshGlobalRefined1.gri", p, q, r);
+    // else if (meshName == "finer") mesh = std::make_shared<TriangularMesh>("projects/Project-2/meshGlobalRefined2.gri", p, q, r);
+    // else mesh = std::make_shared<TriangularMesh>("projects/Project-2/meshGlobalRefined3.gri", p, q, r);
+
+    // std::cout << mesh->I2E() << std::endl;
 
     // // Inlet conditions
     // double gamma = 1.4;
