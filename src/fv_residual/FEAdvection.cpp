@@ -41,6 +41,7 @@ Eigen::MatrixXd FEAdvection::computeResidual(const StateMesh& u) const{
                     double eta = intXi(1, nq);
                     Eigen::Vector4d u = PhiBasis.funcEval(xi, eta, cell); // state values at the quadrature point
                     Eigen::Matrix<double,4,2> F; // get flux from state
+                    
                     double detJ = elem.detJacobian(nq);
 
                     Eigen::Vector2d gRef{intPhiXi(i,nq), intPhiEta(i,nq)}; // 2-by-1
@@ -119,10 +120,9 @@ Eigen::MatrixXd FEAdvection::computeResidual(const StateMesh& u) const{
                             double etaN = edgeXiN(1, edgeNq-1-nq);
                             Eigen::Vector4d uR = PhiBasis.funcEval(xiN, etaN, cellN); // right-state values at the quadrature point
                             double phi = edgePhi(i, nq);
-                            Eigen::Vector4d F = (uL, uR, normal); // get numerical flux from boundary condition                          
+                            Eigen::Vector4d F = _flux->computeFlux(uL, uR, normal); // get numerical flux from boundary condition                          
                             residual.col(k*Np+i) -= edgeW[nq] * J * phi*F;
                         } 
-                        
                     }
                 }
             }
