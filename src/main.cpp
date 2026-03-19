@@ -104,6 +104,7 @@ int main() {
     std::shared_ptr<TimeStepper> stepper = std::make_shared<LocalTimeStepper>(1, gamma, flux);
     std::unique_ptr<Solver> solver = std::make_unique<FESteadySolver>(residual, integrator, stepper);
     int steadyState = 1;
+    
     // int saveEveryNIterations, maxIterations;
     // do{
     //     std::cout << "Enter solver mode (0 = unsteady, 1 = steady): ";
