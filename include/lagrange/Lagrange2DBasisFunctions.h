@@ -1,12 +1,12 @@
 // The set of 2D Lagrange basis functions defined on a unit right triangle
 
-#ifndef LAGRANGE_BASIS_FUNCTIONS_H
-#define LAGRANGE_BASIS_FUNCTIONS_H
+#ifndef LAGRANGE_2D_BASIS_FUNCTIONS_H
+#define LAGRANGE_2D_BASIS_FUNCTIONS_H
 
 #include "Eigen/Dense"
-class LagrangeBasisFunctions{
+class Lagrange2DBasisFunctions{
     public:
-    LagrangeBasisFunctions(int p);
+    Lagrange2DBasisFunctions(int p);
 
     int p() const noexcept{ return _p; }
     int Np() const noexcept{ return _Np; } 

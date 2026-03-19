@@ -7,9 +7,9 @@
 StateMesh::StateMesh(std::shared_ptr<TriangularMesh> spatialMesh, std::vector<std::shared_ptr<BoundaryCondition>>& bc, const Eigen::MatrixXd& array, Eigen::Index p): // std::shared_ptr<FVGradient> grad):
     _spatialMesh(spatialMesh),
     _bc(bc),
-    _stateMesh(array),
     _p(p),
-    _Np((p+1)*(p+2)/2)
+    _Np((p+1)*(p+2)/2),
+    _stateMesh(array)
     //_gradientMethod(grad)
 {
     assert(_spatialMesh->numElems() == std::size_t(_stateMesh.cols())/_Np);
@@ -19,9 +19,9 @@ StateMesh::StateMesh(std::shared_ptr<TriangularMesh> spatialMesh, std::vector<st
 StateMesh::StateMesh(std::shared_ptr<TriangularMesh> spatialMesh, std::vector<std::shared_ptr<BoundaryCondition>>& bc, Eigen::MatrixXd&& array, Eigen::Index p): //, std::shared_ptr<FVGradient> grad):
     _spatialMesh(spatialMesh),
     _bc(bc),
-    _stateMesh(std::move(array)),
     _p(p),
-    _Np((p+1)*(p+2)/2)
+    _Np((p+1)*(p+2)/2),
+    _stateMesh(std::move(array))
     //_gradientMethod(grad)
 {
     assert(_spatialMesh->numElems() == std::size_t(_stateMesh.cols())/_Np);
@@ -31,9 +31,9 @@ StateMesh::StateMesh(std::shared_ptr<TriangularMesh> spatialMesh, std::vector<st
 StateMesh::StateMesh(std::shared_ptr<TriangularMesh> spatialMesh, std::vector<std::shared_ptr<BoundaryCondition>>& bc, Eigen::Index states, Eigen::Index p, double u0): //, std::shared_ptr<FVGradient> grad):
     _spatialMesh(spatialMesh),
     _bc(bc),
-    _stateMesh(Eigen::MatrixXd::Constant(states, _spatialMesh->numElems(), u0)),
     _p(p),
-    _Np((p+1)*(p+2)/2)
+    _Np((p+1)*(p+2)/2),
+    _stateMesh(Eigen::MatrixXd::Constant(states, _spatialMesh->numElems()*_Np, u0))
     //_gradientMethod(nullptr)
 {} 
 

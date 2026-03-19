@@ -10,6 +10,8 @@ class Element{
 
     Eigen::Vector3i pointID() const noexcept { return _pointID; }
     Eigen::Vector3i faceID() const noexcept { return _faceID; }
+    int pointID(Eigen::Index i) const noexcept{ return _pointID[i]; }
+    int faceID(Eigen::Index i) const noexcept{ return _faceID[i]; }
     double area() const noexcept{ return _area; }
     // Eigen::Vector2d centroid() const noexcept{ return _centroid; }
 

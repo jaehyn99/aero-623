@@ -5,8 +5,7 @@
 #include "Constants.h"
 #include "Element.h"
 #include "Face.h"
-#include "FVAdvectionFirstOrder.h"
-#include "FVAdvectionSecondOrder.h"
+#include "FEAdvection.h"
 #include "FVSteadySolver.h"
 #include "FVUnsteadySolver.h"
 #include "GaussLegendre1D.h"
@@ -18,13 +17,13 @@
 #include "InviscidWallBC.h"
 #include "LocalTimeStepper.h"
 #include "OutletBC.h"
+#include "RK4.h"
 #include "RoeFlux.h"
-#include "SSP_RK2.h"
 #include "SSP_RK3.h"
 #include "StateMesh.h"
 #include "TriangularMesh.h"
 
-#include "LagrangeBasisFunctions.h"
+#include "Lagrange2DBasisFunctions.h"
 
 int main() {
 
@@ -32,10 +31,16 @@ int main() {
     std::string meshName;
     std::size_t p = 2;
     std::size_t q = 3;
-    std::size_t r = 2*p+1;
+    std::size_t r = 2*(p+q);
     mesh = std::make_shared<TriangularMesh>("projects/Project-2/mesh_refined_2394.gri", p, q, r);
-    const auto& ref = mesh->reference();
-    std::cout << ref.edgePhi(0) << std::endl;
+
+    std::cout << "Element 0 has three points: " << std::endl;
+    const Element& elem = mesh->elem(0);
+    for (int i = 0; i < 3; i++) std::cout << "\t" << mesh->node(elem.pointID(i)).transpose() << std::endl;
+    for (int i = 0; i < 3; i++){
+        const Face& face = mesh->face(elem.faceID(i));
+        std::cout << "It borders element " << face.elemID(1) << " on face " << i << std::endl;
+    }
 
     // do{
     //     std::cout << "Enter mesh name (\"coarse\", \"fine\", \"finer\", or \"finest\"): ";
@@ -47,42 +52,41 @@ int main() {
     // else if (meshName == "finer") mesh = std::make_shared<TriangularMesh>("projects/Project-2/meshGlobalRefined2.gri", p, q, r);
     // else mesh = std::make_shared<TriangularMesh>("projects/Project-2/meshGlobalRefined3.gri", p, q, r);
 
-    // std::cout << mesh->I2E() << std::endl;
+    // Inlet conditions
+    double gamma = 1.4;
+    double rho0 = 1;
+    double a0 = 1;
+    double p0 = rho0*a0*a0/gamma;
+    double alpha = 50*mconst::pi/180;
+    double pout = 0.7*p0;
+    double M = 0.1;
 
-    // // Inlet conditions
-    // double gamma = 1.4;
-    // double rho0 = 1;
-    // double a0 = 1;
-    // double p0 = rho0*a0*a0/gamma;
-    // double alpha = 50*mconst::pi/180;
-    // double pout = 0.7*p0;
-    // double M = 0.1;
+    // Boundary conditions
+    std::shared_ptr<InletOutletBC> inlet = std::make_shared<InletOutletBC>(rho0, a0, alpha, pout, gamma);
+    std::shared_ptr<BoundaryCondition> wall = std::make_shared<InviscidWallBC>(gamma);
+    std::shared_ptr<BoundaryCondition> outlet = std::make_shared<OutletBC>(pout, gamma);
+    std::vector<std::shared_ptr<BoundaryCondition>> bc{wall, inlet, wall, outlet};
 
-    // // Boundary conditions
-    // std::shared_ptr<InletOutletBC> inlet = std::make_shared<InletOutletBC>(rho0, a0, alpha, pout, gamma);
-    // std::shared_ptr<BoundaryCondition> wall = std::make_shared<InviscidWallBC>(gamma);
-    // std::shared_ptr<BoundaryCondition> outlet = std::make_shared<OutletBC>(pout, gamma);
-    // std::vector<std::shared_ptr<BoundaryCondition>> bc{wall, inlet, wall, outlet};
+    // Initialize the state mesh
+    StateMesh U(mesh, bc, 4, p);
+    U.state(0).fill(rho0);
+    U.state(1).fill(rho0*M*a0*std::cos(alpha));
+    U.state(2).fill(rho0*M*a0*std::sin(alpha));
+    U.state(3).fill(p0/(gamma-1) + 0.5*rho0*M*M*a0*a0);
 
-    // // Initialize the state mesh
-    // StateMesh states(mesh, bc);
-    // states.state(0).fill(rho0);
-    // states.state(1).fill(rho0*M*a0*std::cos(alpha));
-    // states.state(2).fill(rho0*M*a0*std::sin(alpha));
-    // states.state(3).fill(p0/(gamma-1) + 0.5*rho0*M*M*a0*a0);
+    // Solver
+    std::shared_ptr<FVFlux> flux;
+    std::string fluxName;
+    do{
+        std::cout << "Enter flux name (\"roe\" or \"hlle\"): ";
+        std::cin >> fluxName;
+        std::transform(fluxName.begin(), fluxName.end(), fluxName.begin(), [](unsigned char c){ return std::tolower(c); });
+    } while (fluxName != "roe" && fluxName != "hlle");
+    if (fluxName == "roe") flux = std::make_shared<RoeFlux>(gamma);
+    else flux = std::make_shared<HLLEFlux>(gamma);
 
-    // // Solver
-    // std::shared_ptr<FVFlux> flux;
-    // std::string fluxName;
-    // do{
-    //     std::cout << "Enter flux name (\"roe\" or \"hlle\"): ";
-    //     std::cin >> fluxName;
-    //     std::transform(fluxName.begin(), fluxName.end(), fluxName.begin(), [](unsigned char c){ return std::tolower(c); });
-    // } while (fluxName != "roe" && fluxName != "hlle");
-    // if (fluxName == "roe") flux = std::make_shared<RoeFlux>(gamma);
-    // else flux = std::make_shared<HLLEFlux>(gamma);
-
-    // std::shared_ptr<FVResidual> residual;
+    std::shared_ptr<FVResidual> residual = std::make_shared<FEAdvection>(flux);
+    residual->computeResidual(U);
     // int FVOrder;
     // do{
     //     std::cout << "Enter finite-volume order of accuracy (1 or 2): ";
@@ -90,7 +94,7 @@ int main() {
     // } while (FVOrder != 1 && FVOrder != 2);
     // if (FVOrder == 1) residual = std::make_shared<FVAdvectionFirstOrder>(flux);
     // else{
-    //     states.setGradientMethod(std::make_shared<HybridWalkPNGrad>());
+    //     U.setGradientMethod(std::make_shared<HybridWalkPNGrad>());
     //     int useLimiter;
     //     do{
     //         std::cout << "Will a BJ limiter be used (0 = No, 1 = Yes)";
@@ -99,14 +103,14 @@ int main() {
     //     residual = std::make_shared<FVAdvectionSecondOrder>(flux, useLimiter==1);
     // }
     
-    // std::shared_ptr<TimeIntegrator> integrator;
-    // int timeOrder;
-    // do{
-    //     std::cout << "Enter time integration order of accuracy (2 or 3): ";
-    //     std::cin >> timeOrder;    
-    // } while (timeOrder != 2 && timeOrder != 3);
-    // if (timeOrder == 2) integrator = std::make_shared<SSP_RK2>();
-    // else integrator = std::make_shared<SSP_RK3>();
+    std::shared_ptr<TimeIntegrator> integrator;
+    int timeOrder;
+    do{
+        std::cout << "Enter time integration order of accuracy (2 or 3): ";
+        std::cin >> timeOrder;    
+    } while (timeOrder != 3 && timeOrder != 4);
+    if (timeOrder == 3) integrator = std::make_shared<SSP_RK3>();
+    else integrator = std::make_shared<RK4>();
 
     // std::shared_ptr<TimeStepper> stepper = std::make_shared<LocalTimeStepper>(1, gamma, flux);
     // std::unique_ptr<FVSolver> solver;
@@ -135,10 +139,10 @@ int main() {
     //         // Creates a helper solver for second-order or unsteady simulations first
     //         std::shared_ptr<FVResidual> helperResidual = std::make_shared<FVAdvectionFirstOrder>(flux);
     //         FVSteadySolver helperSolver(helperResidual, integrator, stepper);
-    //         helperSolver.solve(states);
+    //         helperSolver.solve(U);
     //     }
 
-    //     solver->solve(states);
+    //     solver->solve(U);
     //     std::vector<Eigen::MatrixXd> results = solver->getResult(); // size = 1 if steady, more than 1 if unsteady
     //     std::vector<double> l1norm = solver->getNorm();
 
@@ -166,7 +170,7 @@ int main() {
     //             std::string resultFilePathAtIter = resultFilePath + "_t_" + std::to_string(it*0.045*saveEveryNIterations);
     //             file.open(resultFilePathAtIter + ".txt");
     //         } else file.open(resultFilePath + ".txt");
-    //         for (Eigen::Index e = 0; e < states.cellCount(); e++) file << results[it].col(e).transpose() << "\n";
+    //         for (Eigen::Index e = 0; e < U.cellCount(); e++) file << results[it].col(e).transpose() << "\n";
     //         file.close();
     //     }
        

@@ -24,7 +24,7 @@ Eigen::ArrayXd LocalTimeStepper::dt(const StateMesh& u) const noexcept{
     for (std::size_t i = 0; i < mesh->numFaces(); i++){
         const auto& face = mesh->face(i);
         Eigen::Vector2d normal = face.normal(); // direction doesn't matter here
-        Eigen::Index e = face.elemID()[0];
+        Eigen::Index e = face.elemID(0);
         double cL = speedOfSound(u.cell(e), _gamma);
         if (face.isBoundaryFace()){
             std::size_t boundaryID;
@@ -37,7 +37,7 @@ Eigen::ArrayXd LocalTimeStepper::dt(const StateMesh& u) const noexcept{
             Eigen::Vector4d Ub = u.bc(boundaryID)->computeBoundaryState(u.cell(e), normal); // last entry is speed of sound, not energy
             sFace[i] = _flux->computeWaveSpeed(u.cell(e), Ub, normal, cL, Ub[3]);
         } else{
-            Eigen::Index ne = face.elemID()[1];
+            Eigen::Index ne = face.elemID(1);
             double cR = speedOfSound(u.cell(ne), _gamma);
             sFace[i] = _flux->computeWaveSpeed(u.cell(e), u.cell(ne), normal, cL, cR);
         }

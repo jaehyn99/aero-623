@@ -1,7 +1,7 @@
-#include "LagrangeBasisFunctions.h"
+#include "Lagrange2DBasisFunctions.h"
 #include <iostream>
 
-LagrangeBasisFunctions::LagrangeBasisFunctions(int p):
+Lagrange2DBasisFunctions::Lagrange2DBasisFunctions(int p):
     _p(p),
     _Np((p+1)*(p+2)/2),
     _phi(Eigen::MatrixXd::Zero(_Np, _Np)),
@@ -68,7 +68,7 @@ LagrangeBasisFunctions::LagrangeBasisFunctions(int p):
     }
 }
 
-Eigen::VectorXd LagrangeBasisFunctions::evalPhi(double x, double y) const noexcept{
+Eigen::VectorXd Lagrange2DBasisFunctions::evalPhi(double x, double y) const noexcept{
     if (_p == 0) return _phi;
 
     Eigen::MatrixXd eval = _phi;
@@ -90,7 +90,7 @@ Eigen::VectorXd LagrangeBasisFunctions::evalPhi(double x, double y) const noexce
     return eval.rowwise().sum();
 }
 
-Eigen::VectorXd LagrangeBasisFunctions::evalPhiX(double x, double y) const noexcept{
+Eigen::VectorXd Lagrange2DBasisFunctions::evalPhiX(double x, double y) const noexcept{
     if (_p == 0) return Eigen::MatrixXd(); // empty matrix
 
     Eigen::MatrixXd eval = _phix;
@@ -106,7 +106,7 @@ Eigen::VectorXd LagrangeBasisFunctions::evalPhiX(double x, double y) const noexc
     return eval.rowwise().sum();
 }
 
-Eigen::VectorXd LagrangeBasisFunctions::evalPhiY(double x, double y) const noexcept{
+Eigen::VectorXd Lagrange2DBasisFunctions::evalPhiY(double x, double y) const noexcept{
     if (_p == 0) return Eigen::MatrixXd(); // empty matrix
 
     Eigen::MatrixXd eval = _phiy;
@@ -122,7 +122,7 @@ Eigen::VectorXd LagrangeBasisFunctions::evalPhiY(double x, double y) const noexc
     return eval.rowwise().sum();
 }
 
-Eigen::Matrix2Xd LagrangeBasisFunctions::getLagrangeNodes() const noexcept{
+Eigen::Matrix2Xd Lagrange2DBasisFunctions::getLagrangeNodes() const noexcept{
 	Eigen::Matrix2Xd xiL(2, _Np);
 	Eigen::Matrix<double, 2, 3> V;
 	V << 0, 1, 0,
@@ -138,39 +138,39 @@ Eigen::Matrix2Xd LagrangeBasisFunctions::getLagrangeNodes() const noexcept{
 	return xiL;
 }
 
-double LagrangeBasisFunctions::funcEval(double x, double y, const Eigen::VectorXd& coeff){
+double Lagrange2DBasisFunctions::funcEval(double x, double y, const Eigen::VectorXd& coeff){
     assert(coeff.size() == _Np);
     if (_p == 0) return coeff[0];
     return evalPhi(x,y).dot(coeff);
 }
 
-Eigen::VectorXd LagrangeBasisFunctions::funcEval(double x, double y, const Eigen::MatrixXd& coeff){
+Eigen::VectorXd Lagrange2DBasisFunctions::funcEval(double x, double y, const Eigen::MatrixXd& coeff){
     assert(coeff.cols() == _Np);
     if (_p == 0) return coeff.col(0);
     return coeff*evalPhi(x,y); // result is a Ns-by-1 vector
 }
 
-double LagrangeBasisFunctions::funcXEval(double x, double y, const Eigen::VectorXd& coeff){
+double Lagrange2DBasisFunctions::funcXEval(double x, double y, const Eigen::VectorXd& coeff){
     assert(coeff.size() == _Np);
     if (_p == 0) return 0;
     return evalPhiX(x,y).dot(coeff);
 }
 
-Eigen::VectorXd LagrangeBasisFunctions::funcXEval(double x, double y, const Eigen::MatrixXd& coeff){
-    assert(coeff.rows() == _Np);
+Eigen::VectorXd Lagrange2DBasisFunctions::funcXEval(double x, double y, const Eigen::MatrixXd& coeff){
+    assert(coeff.cols() == _Np);
     if (_p == 0) return coeff.row(0).transpose();
     return coeff*evalPhiX(x,y); // result is a Ns-by-1 vector
 }
 
-double LagrangeBasisFunctions::funcYEval(double x, double y, const Eigen::VectorXd& coeff){
+double Lagrange2DBasisFunctions::funcYEval(double x, double y, const Eigen::VectorXd& coeff){
     assert(coeff.size() == _Np);
     if (_p == 0) return 0;
     // Reduce coeff to obtain only the coefficients that affect 
     return evalPhiY(x,y).dot(coeff);
 }
 
-Eigen::VectorXd LagrangeBasisFunctions::funcYEval(double x, double y, const Eigen::MatrixXd& coeff){
-    assert(coeff.rows() == _Np);
+Eigen::VectorXd Lagrange2DBasisFunctions::funcYEval(double x, double y, const Eigen::MatrixXd& coeff){
+    assert(coeff.cols() == _Np);
     if (_p == 0) return coeff.row(0).transpose();
     return coeff*evalPhiY(x,y); // result is a Ns-by-1 vector
 }

@@ -9,7 +9,7 @@ class LinearFace: public Face{
 
     bool isCurvedFace() const noexcept override{ return false; }
     Eigen::Vector2d normal(std::size_t) const noexcept override{ return _n; }
-    // double detJ(std::size_t) const noexcept override{ return _length; }
+    double detJ(std::size_t) const noexcept override{ return _length; }
 
     protected:
     Eigen::Vector2d _n;

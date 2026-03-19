@@ -17,7 +17,7 @@ class StateMesh{
     Eigen::Index p() const noexcept{ return _p; }
     Eigen::Index Np() const noexcept{ return _Np; }
     Eigen::Index size() const noexcept{ return _stateMesh.size(); }
-    Eigen::Index cellCount() const noexcept{ return _stateMesh.cols(); }
+    Eigen::Index cellCount() const noexcept{ return _stateMesh.cols()/_Np; }
     Eigen::Index stateCount() const noexcept{ return _stateMesh.rows(); }
     Eigen::Index bcCount() const noexcept{ return _bc.size(); }
 
@@ -46,9 +46,9 @@ class StateMesh{
     protected:
     std::shared_ptr<TriangularMesh> _spatialMesh;
     std::vector<std::shared_ptr<BoundaryCondition>> _bc; // should store the BCs in the order the non-periodic boundaries are listed in the input .GRI file
-    Eigen::MatrixXd _stateMesh;
     Eigen::Index _p;
     Eigen::Index _Np;
+    Eigen::MatrixXd _stateMesh;
     //std::vector<Eigen::Matrix<double,4,2>> _gradient; // precomputed gradient for the current state, to be used in second-order residuals
     //std::shared_ptr<FVGradient> _gradientMethod; // strategy for computing gradient, to be set by the user before calling computeGradient()
 };

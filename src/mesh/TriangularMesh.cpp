@@ -4,7 +4,8 @@
 #include "CurvedFace.h"
 #include "GaussLegendre1D.h"
 #include "GaussLegendre2D.h"
-#include "LagrangeBasisFunctions.h"
+#include "Lagrange1DBasisFunctions.h"
+#include "Lagrange2DBasisFunctions.h"
 #include "LinearElement.h"
 #include "LinearFace.h"
 
@@ -111,28 +112,34 @@ TriangularMesh::TriangularMesh(const std::string& fileName, std::size_t p, std::
                 cFace->_xL.col(i-1) = face->title() == "Curve1" ? _upper->eval(s) : _lower->eval(s);
             }
 
+            // Use the Lagrange basis to approximate/interpolate the edge
+            Lagrange1DBasisFunctions PhiLagrange(q);
+            Eigen::MatrixXd Xedge(2, q+1);
+            Xedge.col(0) = _nodes[cFace->pointID()[0]]; // first endpoint
+            Xedge.middleCols(1, q-1) = cFace->_xL; // edge points
+            Xedge.col(q) = _nodes[cFace->pointID()[1]]; // second endpoint
+
             // Generate the quadrature nodes
-            auto qnodes = GL.getNodes({s0, s1});
+            auto qnodes = GL.getNodes(); // quadrature nodes on the domain (0, 1)
             int NQ = qnodes.size(); // number of quadrature nodes
             // Resize these matrices so that the relevant info at each quadrature node can be stored
             cFace->_xq.resize(Eigen::NoChange, NQ);
             cFace->_n.resize(Eigen::NoChange, NQ);
+            cFace->_detJ.resize(NQ);
             for (int i = 0; i < NQ; i++){
-                double s = qnodes[i];
-                Eigen::Vector2d N;
-                if (face->title() == "Curve1"){
-                    cFace->_xq.col(i) = _upper->eval(s); // Quadrature node position
-                    // Outward normal vector
-                    N = _upper->evalDeriv2(s).normalized(); 
-                    if (N.y() > 0) N *= -1; // normals on the "upper" curve point down
-                } else{
-                    cFace->_xq.col(i) = _lower->eval(s); // Quadrature node position
-                    // Outward normal vector
-                    N = _upper->evalDeriv2(s).normalized(); 
-                    if (N.y() < 0) N *= -1; // normals on the "lower" curve point up              
-                }
+                double sigma = qnodes[i];
+                cFace->_xq.col(i) = PhiLagrange.funcEval(sigma, Xedge);
+
+                Eigen::Vector2d tds_dsigma = PhiLagrange.funcXEval(sigma, Xedge);
+                Eigen::Vector2d N{tds_dsigma[1], -tds_dsigma[0]};
+                N.normalize();
+                if (face->title() == "Curve1" && N.y() > 0) N *= -1; // normals on the "upper" curve point down
+                if (face->title() == "Curve5" && N.y() < 0) N *= -1; // normals on the "lower" curve point up              
+                
                 cFace->_n.col(i) = N;
+                cFace->_detJ[i] = tds_dsigma.lpNorm<2>();
             }
+
             if (face->title() == "Curve1") iU++;
             else iL++;
         }
@@ -267,7 +274,7 @@ TriangularMesh::TriangularMesh(const std::string& fileName, std::size_t p, std::
                 cElem->_J.resize(NQ, Eigen::Matrix2d::Zero());
                 cElem->_detJ.resize(NQ);
 
-                LagrangeBasisFunctions phis(q);
+                Lagrange2DBasisFunctions phis(q);
                 for (int ii = 0; ii < NQ; ii++){
                     int Nq = (q+1)*(q+2)/2;
                     Eigen::MatrixX2d dphi(Nq, 2);
@@ -296,20 +303,26 @@ TriangularMesh::TriangularMesh(const std::string& fileName, std::size_t p, std::
     for (std::size_t i = 0; i < curve2Faces.size(); i++){
         int curve2ID = curve2Faces[i];
         int curve4ID = curve4Faces[i];
-        _faces[curve2ID]->_pointID[1] = _faces[curve4ID]->_pointID[0];
-        _faces[curve4ID]->_pointID[1] = _faces[curve2ID]->_pointID[0];
-        if (_faces[curve2ID]->_pointID[0] > _faces[curve2ID]->_pointID[1]) std::swap(_faces[curve2ID]->_pointID[0], _faces[curve2ID]->_pointID[1]);
-        if (_faces[curve4ID]->_pointID[0] > _faces[curve4ID]->_pointID[1]) std::swap(_faces[curve4ID]->_pointID[0], _faces[curve4ID]->_pointID[1]);
+        int elemL = _faces[curve2ID]->_elemID[0];
+        int elemR = _faces[curve4ID]->_elemID[0];
+        if (elemL > elemR) std::swap(elemL, elemR);
+        _faces[curve2ID]->_elemID[0] = elemL;
+        _faces[curve2ID]->_elemID[1] = elemR;
+        _faces[curve4ID]->_elemID[0] = elemL;
+        _faces[curve4ID]->_elemID[1] = elemR;        
     }
 
     // Matching curve6 and curve8
     for (std::size_t i = 0; i < curve6Faces.size(); i++){
         int curve6ID = curve6Faces[i];
         int curve8ID = curve8Faces[i];
-        _faces[curve6ID]->_pointID[1] = _faces[curve8ID]->_pointID[0];
-        _faces[curve8ID]->_pointID[1] = _faces[curve6ID]->_pointID[0];
-        if (_faces[curve6ID]->_pointID[0] > _faces[curve8ID]->_pointID[1]) std::swap(_faces[curve6ID]->_pointID[0], _faces[curve6ID]->_pointID[1]);
-        if (_faces[curve8ID]->_pointID[0] > _faces[curve6ID]->_pointID[1]) std::swap(_faces[curve8ID]->_pointID[0], _faces[curve8ID]->_pointID[1]);
+        int elemL = _faces[curve6ID]->_elemID[0];
+        int elemR = _faces[curve8ID]->_elemID[0];
+        if (elemL > elemR) std::swap(elemL, elemR);
+        _faces[curve6ID]->_elemID[0] = elemL;
+        _faces[curve6ID]->_elemID[1] = elemR;
+        _faces[curve8ID]->_elemID[0] = elemL;
+        _faces[curve8ID]->_elemID[1] = elemR;   
     }
 
     // Update normal vectors on each edge, always pointing from L to R

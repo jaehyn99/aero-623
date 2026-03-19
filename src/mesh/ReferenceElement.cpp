@@ -1,14 +1,14 @@
 #include "ReferenceElement.h"
 #include "GaussLegendre1D.h"
 #include "GaussLegendre2D.h"
-#include "LagrangeBasisFunctions.h"
+#include "Lagrange2DBasisFunctions.h"
 #include <iostream>
 
 ReferenceElement::ReferenceElement(int p, int r):
     _p(p),
     _r(r)
 {
-    LagrangeBasisFunctions PhiLagrange(_p);
+    Lagrange2DBasisFunctions PhiLagrange(_p);
     _xiL = PhiLagrange.getLagrangeNodes();
     Eigen::Index Np = (_p+1)*(_p+2)/2;
     
@@ -53,7 +53,7 @@ ReferenceElement::ReferenceElement(int p, int r):
     for (int i = 0; i < Nq; i++){
         _edgeXi[0].col(i) = p2 + (p3-p2)*edgeXiAlt[i]; // edge 0 = hypotnuse
         _edgeXi[1].col(i) = p3 + (p1-p3)*edgeXiAlt[i]; // edge 1 = vertical edge
-        _edgeXi[1].col(i) = p1 + (p2-p1)*edgeXiAlt[i]; // edge 2 = horizontal edge
+        _edgeXi[2].col(i) = p1 + (p2-p1)*edgeXiAlt[i]; // edge 2 = horizontal edge
     }
 
     for (int edge = 0; edge < 3; edge++){
