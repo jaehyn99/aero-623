@@ -1,10 +1,10 @@
 #ifndef FE_ADVECTION_H
 #define FE_ADVECTION_H
 
-#include "FVResidual.h"
+#include "Residual.h"
 
 class FVFlux;
-class FEAdvection: public FVResidual{
+class FEAdvection: public Residual{
     public:
     FEAdvection(std::shared_ptr<FVFlux> flux): _flux(flux) {}
     Eigen::MatrixXd computeResidual(const StateMesh& u) const override;

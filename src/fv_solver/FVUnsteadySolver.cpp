@@ -1,5 +1,5 @@
 #include "FVUnsteadySolver.h"
-#include "FVResidual.h"
+#include "Residual.h"
 #include "InletBC.h"
 #include "InletOutletBC.h"
 #include "LocalTimeStepper.h"
@@ -8,9 +8,9 @@
 #include "TimeStepper.h"
 #include <iostream>
 
-FVUnSteadySolver::FVUnSteadySolver(std::shared_ptr<FVResidual> residual, std::shared_ptr<TimeIntegrator> integrator,
+FVUnSteadySolver::FVUnSteadySolver(std::shared_ptr<Residual> residual, std::shared_ptr<TimeIntegrator> integrator,
                                std::shared_ptr<TimeStepper> stepper, std::size_t saveEveryNIterations, std::size_t maxIterations):
-    FVSolver(residual, integrator, stepper),
+    Solver(residual, integrator, stepper),
     _saveEveryNIterations(saveEveryNIterations),
     _maxIterations(maxIterations)
 {}

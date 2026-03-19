@@ -26,7 +26,6 @@ ReferenceElement::ReferenceElement(int p, int r):
     _intPhi.resize(Np, Nq);
     _intPhiXi.resize(Np, Nq);
     _intPhiEta.resize(Np, Nq);
-    _M.resize(Np, Np);
 
     for (int i = 0; i < Nq; i++){
         double xi = _intXi(0, i);
@@ -67,11 +66,14 @@ ReferenceElement::ReferenceElement(int p, int r):
     }
 
     // Computes reference mass matrix using quadrature
+    Eigen::MatrixXd M(Np, Np);
     for (int ii = 0; ii < Np; ii++) {
         for (int jj = ii; jj < Np; jj++) {
             Eigen::RowVectorXd phiij = _intPhi.row(ii).array() * _intPhi.row(jj).array();
-            _M(ii,jj) = phiij*_intW;
-            _M(jj,ii) = _M(ii,jj);
+            M(ii,jj) = phiij*_intW;
+            M(jj,ii) = M(ii,jj);
         }
     }
+    _MLLT = M.llt();
+    if (_MLLT.info() != Eigen::Success) throw std::runtime_error("ERROR: Unable to factorize the mass matrix.");
 }

@@ -146,6 +146,7 @@ TriangularMesh::TriangularMesh(const std::string& fileName, std::size_t p, std::
     }
 
     // Fill in the elements, interior nodes, and connectivity info
+    int Np = (p+1)*(p+2)/2;
     _elems.reserve(nElemTot);
     while (nElemTot > 0){
         splitNextLine();
@@ -284,6 +285,18 @@ TriangularMesh::TriangularMesh(const std::string& fileName, std::size_t p, std::
                     cElem->_detJ[ii] = std::abs(cElem->_J[ii].determinant());
                     cElem->_area += cElem->_detJ[ii]*qweights[ii];
                 }
+
+                Eigen::MatrixXd M(Np, Np);
+                const auto& intPhi = _ref.intPhi();
+                Eigen::VectorXd intW = _ref.intW().array() * cElem->_detJ.array();
+                for (int i = 0; i < Np; i++) {
+                    for (int j = i; j < Np; j++) {
+                        Eigen::RowVectorXd phiij = intPhi.row(i).array() * intPhi.row(j).array();
+                        M(i,j) = phiij*intW;
+                        M(j,i) = M(i,j);
+                    }
+                }
+                cElem->_MLLT = M.llt();
                 _elems.emplace_back(std::move(cElem));
             }
         }

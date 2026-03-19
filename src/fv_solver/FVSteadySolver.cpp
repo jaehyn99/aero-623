@@ -1,14 +1,14 @@
 #include "FVSteadySolver.h"
-#include "FVResidual.h"
+#include "Residual.h"
 #include "LocalTimeStepper.h"
 #include "StateMesh.h"
 #include "TimeIntegrator.h"
 #include "TimeStepper.h"
 #include <iostream>
 
-FVSteadySolver::FVSteadySolver(std::shared_ptr<FVResidual> residual, std::shared_ptr<TimeIntegrator> integrator,
+FVSteadySolver::FVSteadySolver(std::shared_ptr<Residual> residual, std::shared_ptr<TimeIntegrator> integrator,
                                std::shared_ptr<TimeStepper> stepper, double tol):
-    FVSolver(residual, integrator, stepper),
+    Solver(residual, integrator, stepper),
     _tol(tol)
 {}
 

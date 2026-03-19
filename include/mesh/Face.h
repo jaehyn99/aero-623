@@ -19,7 +19,7 @@ class Face{
     double length() const noexcept{ return _length; }
     std::string title() const noexcept{ return _title; }
     virtual Eigen::Vector2d normal(std::size_t=0) const noexcept = 0; // get the normal vector at the specified quadrature point
-    virtual double detJ(std::size_t) const noexcept = 0; // get the Jacobian determinant (ds/dsigma) at the specified quadrature point
+    virtual double detJ(std::size_t=0) const noexcept = 0; // get the Jacobian determinant (ds/dsigma) at the specified quadrature point
     
     protected:
     Eigen::Vector2i _pointID; // point indices

@@ -57,7 +57,6 @@ Eigen::MatrixXd FEAdvection::computeResidual(const StateMesh& u) const{
         
         // std::cout << "Entering element loop" << std::endl;
         for (std::size_t k = 0; k < mesh->numElems(); k++){
-            std::cout << k << std::endl;
             Eigen::MatrixXd cell = u.cell(k); // block matrix with basis function weight
             const Element& elem = mesh->elem(k);
             // std::cout << "Entering basis function loop" << std::endl;
@@ -143,15 +142,15 @@ Eigen::MatrixXd FEAdvection::computeResidual(const StateMesh& u) const{
 
                         Eigen::MatrixXd cellN = u.cell(kn);
                         Eigen::Matrix2Xd edgeXiN = ref.edgeXi(edgeN);
-                        const Element& elemN = mesh->elem(kn);
+                        // const Element& elemN = mesh->elem(kn);
                         // std::cout << "\tLocating nodes on elemL" << std::endl;
-                        Eigen::Vector2d x0 = mesh->node(elem.pointID(0)); // std::cout << x0.transpose() << std::endl;
-                        Eigen::Vector2d x1 = mesh->node(elem.pointID(1)); // std::cout << x1.transpose() << std::endl;
-                        Eigen::Vector2d x2 = mesh->node(elem.pointID(2)); // std::cout << x2.transpose() << std::endl;
+                        // Eigen::Vector2d x0 = mesh->node(elem.pointID(0)); // std::cout << x0.transpose() << std::endl;
+                        // Eigen::Vector2d x1 = mesh->node(elem.pointID(1)); // std::cout << x1.transpose() << std::endl;
+                        // Eigen::Vector2d x2 = mesh->node(elem.pointID(2)); // std::cout << x2.transpose() << std::endl;
                         // std::cout << "\tLocating nodes on elemR" << std::endl;
-                        Eigen::Vector2d x0n = mesh->node(elemN.pointID(0)); // std::cout << x0n.transpose() << std::endl;
-                        Eigen::Vector2d x1n = mesh->node(elemN.pointID(1)); // std::cout << x1n.transpose() << std::endl;
-                        Eigen::Vector2d x2n = mesh->node(elemN.pointID(2)); // std::cout << x2n.transpose() << std::endl;
+                        // Eigen::Vector2d x0n = mesh->node(elemN.pointID(0)); // std::cout << x0n.transpose() << std::endl;
+                        // Eigen::Vector2d x1n = mesh->node(elemN.pointID(1)); // std::cout << x1n.transpose() << std::endl;
+                        // Eigen::Vector2d x2n = mesh->node(elemN.pointID(2)); // std::cout << x2n.transpose() << std::endl;
                         // std::cout << "Face " << edge << " on element " << k << " is face " << edgeN << " on element " << kn << std::endl;
 
                         // std::cout << "\tThe actual integration" << std::endl;

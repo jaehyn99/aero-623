@@ -3,23 +3,23 @@
 
 #include "Eigen/Dense"
 
-class FVResidual;
+class Residual;
 class StateMesh;
 class TimeIntegrator;
 class TimeStepper;
-class FVSolver{
+class Solver{
     public:
-    FVSolver(std::shared_ptr<FVResidual>, std::shared_ptr<TimeIntegrator>, std::shared_ptr<TimeStepper>);
-    FVSolver(FVSolver&&);
-    FVSolver& operator=(FVSolver&&);
-    ~FVSolver();
+    Solver(std::shared_ptr<Residual>, std::shared_ptr<TimeIntegrator>, std::shared_ptr<TimeStepper>);
+    Solver(Solver&&);
+    Solver& operator=(Solver&&);
+    ~Solver();
 
     virtual void solve(StateMesh&) const = 0;
     auto getResult() const noexcept{ return std::move(_result); }
     auto getNorm() const noexcept{ return std::move(_l1norm); }
 
     protected:
-    std::shared_ptr<FVResidual> _residual;
+    std::shared_ptr<Residual> _residual;
     std::shared_ptr<TimeIntegrator> _integrator;
     std::shared_ptr<TimeStepper> _stepper;
     mutable std::vector<Eigen::MatrixXd> _result;

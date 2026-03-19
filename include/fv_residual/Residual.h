@@ -3,9 +3,9 @@
 
 #include "Eigen/Dense"
 class StateMesh;
-class FVResidual{
+class Residual{
     public:
-    virtual ~FVResidual() = default;
+    virtual ~Residual() = default;
     virtual Eigen::MatrixXd computeResidual(const StateMesh& u) const = 0;
 };
 

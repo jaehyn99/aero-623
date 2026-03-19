@@ -22,8 +22,7 @@ class ReferenceElement{
     const Eigen::MatrixXd& edgePhi(std::size_t i) const noexcept{ return _edgePhi[i]; }
     const Eigen::MatrixXd& edgePhiXi(std::size_t i) const noexcept{ return _edgePhiXi[i]; }
     const Eigen::MatrixXd& edgePhiEta(std::size_t i) const noexcept{ return _edgePhiEta[i]; }
-
-    const Eigen::MatrixXd& M() const noexcept{ return _M; }
+    const auto& MLLT() const noexcept{ return _MLLT; }
 
     protected:
     int _p; // order of the highest Lagrange basis function used to estimate solution
@@ -44,7 +43,7 @@ class ReferenceElement{
     std::array<Eigen::MatrixXd, 3> _edgePhiXi; // xi-derivative of shape functions at edge quadrature points
     std::array<Eigen::MatrixXd, 3> _edgePhiEta; // eta-derivative of shape functions at edge quadrature points
 
-    Eigen::MatrixXd _M; // mass matrix
+    Eigen::LLT<Eigen::MatrixXd> _MLLT; // mass matrix
 };
 
 #endif

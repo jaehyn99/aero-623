@@ -16,8 +16,8 @@ class Element{
     // Eigen::Vector2d centroid() const noexcept{ return _centroid; }
 
     virtual bool isCurvedElement() const noexcept = 0;
-    virtual Eigen::Matrix2d jacobian(std::size_t) const noexcept = 0;
-    virtual double detJacobian(std::size_t) const noexcept = 0;
+    virtual Eigen::Matrix2d jacobian(std::size_t=0) const noexcept = 0;
+    virtual double detJacobian(std::size_t=0) const noexcept = 0;
 
     protected:
     Eigen::Vector3i _pointID; // point indices, arranged in counter-clockwise order

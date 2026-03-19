@@ -6,12 +6,10 @@
 #include "Element.h"
 #include "Face.h"
 #include "FEAdvection.h"
-#include "FVSteadySolver.h"
-#include "FVUnsteadySolver.h"
+#include "FESteadySolver.h"
 #include "GaussLegendre1D.h"
 #include "GaussLegendre2D.h"
 #include "HLLEFlux.h"
-#include "hybridWalkPNGrad.h"
 #include "InletBC.h"
 #include "InletOutletBC.h"
 #include "InviscidWallBC.h"
@@ -29,18 +27,10 @@ int main() {
 
     std::shared_ptr<TriangularMesh> mesh;
     std::string meshName;
-    std::size_t p = 2;
+    std::size_t p = 1;
     std::size_t q = 3;
     std::size_t r = 2*(p+q);
-    mesh = std::make_shared<TriangularMesh>("projects/Project-2/mesh_refined_2394.gri", p, q, r);
-
-    std::cout << "Element 0 has three points: " << std::endl;
-    const Element& elem = mesh->elem(0);
-    for (int i = 0; i < 3; i++) std::cout << "\t" << mesh->node(elem.pointID(i)).transpose() << std::endl;
-    for (int i = 0; i < 3; i++){
-        const Face& face = mesh->face(elem.faceID(i));
-        std::cout << "It borders element " << face.elemID(1) << " on face " << i << std::endl;
-    }
+    mesh = std::make_shared<TriangularMesh>("projects/Project-1/test.gri", p, q, r);
 
     // do{
     //     std::cout << "Enter mesh name (\"coarse\", \"fine\", \"finer\", or \"finest\"): ";
@@ -85,8 +75,7 @@ int main() {
     if (fluxName == "roe") flux = std::make_shared<RoeFlux>(gamma);
     else flux = std::make_shared<HLLEFlux>(gamma);
 
-    std::shared_ptr<FVResidual> residual = std::make_shared<FEAdvection>(flux);
-    residual->computeResidual(U);
+    std::shared_ptr<Residual> residual = std::make_shared<FEAdvection>(flux);
     // int FVOrder;
     // do{
     //     std::cout << "Enter finite-volume order of accuracy (1 or 2): ";
@@ -112,9 +101,9 @@ int main() {
     if (timeOrder == 3) integrator = std::make_shared<SSP_RK3>();
     else integrator = std::make_shared<RK4>();
 
-    // std::shared_ptr<TimeStepper> stepper = std::make_shared<LocalTimeStepper>(1, gamma, flux);
-    // std::unique_ptr<FVSolver> solver;
-    // int steadyState;
+    std::shared_ptr<TimeStepper> stepper = std::make_shared<LocalTimeStepper>(1, gamma, flux);
+    std::unique_ptr<Solver> solver = std::make_unique<FESteadySolver>(residual, integrator, stepper);
+    int steadyState = 1;
     // int saveEveryNIterations, maxIterations;
     // do{
     //     std::cout << "Enter solver mode (0 = unsteady, 1 = steady): ";
@@ -134,49 +123,50 @@ int main() {
     //     solver = std::make_unique<FVUnSteadySolver>(residual, integrator, stepper, saveEveryNIterations, maxIterations);
     // }
 
-    // try{
-    //     if (FVOrder == 2 || steadyState == 0){
-    //         // Creates a helper solver for second-order or unsteady simulations first
-    //         std::shared_ptr<FVResidual> helperResidual = std::make_shared<FVAdvectionFirstOrder>(flux);
-    //         FVSteadySolver helperSolver(helperResidual, integrator, stepper);
-    //         helperSolver.solve(U);
-    //     }
+    try{
+        // if (FVOrder == 2 || steadyState == 0){
+        //     // Creates a helper solver for second-order or unsteady simulations first
+        //     std::shared_ptr<Residual> helperResidual = std::make_shared<FVAdvectionFirstOrder>(flux);
+        //     FVSteadySolver helperSolver(helperResidual, integrator, stepper);
+        //     helperSolver.solve(U);
+        // }
 
-    //     solver->solve(U);
-    //     std::vector<Eigen::MatrixXd> results = solver->getResult(); // size = 1 if steady, more than 1 if unsteady
-    //     std::vector<double> l1norm = solver->getNorm();
+        solver->solve(U);
+        // std::vector<Eigen::MatrixXd> results = solver->getResult(); // size = 1 if steady, more than 1 if unsteady
+        // std::vector<double> l1norm = solver->getNorm();
 
-    //     std::vector<std::size_t> iter;
-    //     if (steadyState == 1) iter = {0};
-    //     else{
-    //         iter.resize(results.size());
-    //         for (std::size_t i = 0; i < results.size(); i++) iter[i] = i;
-    //     }
+        // std::vector<std::size_t> iter;
+        // if (steadyState == 1) iter = {0};
+        // else{
+        //     iter.resize(results.size());
+        //     for (std::size_t i = 0; i < results.size(); i++) iter[i] = i;
+        // }
 
-    //     std::ofstream file;
-    //     std::string resultFilePath = "projects/Project-2/results/";
-    //     resultFilePath += meshName + "_mesh_";
-    //     resultFilePath += (steadyState == 0) ? "unsteady_" : "steady_";
-    //     resultFilePath += (FVOrder == 1) ? "firstorder_" : "secondorder_";
-    //     resultFilePath += (timeOrder == 2) ? "RK2_" : "RK3_";
-    //     resultFilePath += fluxName;
+        // std::ofstream file;
+        // std::string resultFilePath = "projects/Project-2/results/";
+        // resultFilePath += meshName + "_mesh_";
+        // resultFilePath += (steadyState == 0) ? "unsteady_" : "steady_";
+        // resultFilePath += (FVOrder == 1) ? "firstorder_" : "secondorder_";
+        // resultFilePath += (timeOrder == 2) ? "RK2_" : "RK3_";
+        // resultFilePath += fluxName;
         
-    //     file.open(resultFilePath + "_norm.txt");
-    //     for (auto norm: l1norm) file << norm << "\n";
-    //     file.close();
+        // file.open(resultFilePath + "_norm.txt");
+        // for (auto norm: l1norm) file << norm << "\n";
+        // file.close();
 
-    //     for (auto it: iter){
-    //         if (steadyState == 0){
-    //             std::string resultFilePathAtIter = resultFilePath + "_t_" + std::to_string(it*0.045*saveEveryNIterations);
-    //             file.open(resultFilePathAtIter + ".txt");
-    //         } else file.open(resultFilePath + ".txt");
-    //         for (Eigen::Index e = 0; e < U.cellCount(); e++) file << results[it].col(e).transpose() << "\n";
-    //         file.close();
-    //     }
+        // for (auto it: iter){
+        //     if (steadyState == 0){
+        //         std::string resultFilePathAtIter = resultFilePath + "_t_" + std::to_string(it*0.045*saveEveryNIterations);
+        //         file.open(resultFilePathAtIter + ".txt");
+        //     } else file.open(resultFilePath + ".txt");
+        //     for (Eigen::Index e = 0; e < U.cellCount(); e++) file << results[it].col(e).transpose() << "\n";
+        //     file.close();
+        // }
        
-    // } catch (std::runtime_error& ex){
-    //     std::ofstream f("debug.txt");
-    // }
+    } catch (std::runtime_error& ex){
+        std::cerr << ex.what() << std::endl;
+        std::ofstream f("debug.txt");
+    }
 
     // return 0;
 }
