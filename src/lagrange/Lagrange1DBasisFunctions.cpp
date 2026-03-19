@@ -34,8 +34,6 @@ Lagrange1DBasisFunctions::Lagrange1DBasisFunctions(int p):
 }
 
 Eigen::VectorXd Lagrange1DBasisFunctions::evalPhi(double x) const noexcept{
-    if (_p == 0) return _phi; // 1
-
     Eigen::MatrixXd eval = _phi;
     if (_p >= 1) eval.col(1) *= x;
     if (_p >= 2) eval.col(2) *= x*x;
@@ -44,8 +42,6 @@ Eigen::VectorXd Lagrange1DBasisFunctions::evalPhi(double x) const noexcept{
 }
 
 Eigen::VectorXd Lagrange1DBasisFunctions::evalPhiX(double x) const noexcept{
-    if (_p == 0) return Eigen::MatrixXd(); // empty matrix
-
     Eigen::MatrixXd eval = _phix;
     if (_p >= 2) eval.col(1) *= x;
     if (_p == 3) eval.col(2) *= x*x;
