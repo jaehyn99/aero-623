@@ -10,6 +10,7 @@ ReferenceElement::ReferenceElement(int p, int r):
 {
     Lagrange2DBasisFunctions PhiLagrange(_p);
     _xiL = PhiLagrange.nodes();
+    std::cout << _xiL << std::endl;
     Eigen::Index Np = (_p+1)*(_p+2)/2;
     
     // Computes basis functions and their derivative at internal quadrature points
@@ -24,16 +25,20 @@ ReferenceElement::ReferenceElement(int p, int r):
         _intXi(1,i) = intXiAlt(2*i+1);
     }
 
-    _intPhi.resize(Np, Nq);
-    _intPhiXi.resize(Np, Nq);
-    _intPhiEta.resize(Np, Nq);
+    std::cout << "Computes basis functions and their derivative at internal quadrature points" << std::endl;
+    std::cout << _intXi << std::endl;
+    if (_p > 0){
+        _intPhi.resize(Np, Nq);
+        _intPhiXi.resize(Np, Nq);
+        _intPhiEta.resize(Np, Nq);
 
-    for (int i = 0; i < Nq; i++){
-        double xi = _intXi(0, i);
-        double eta = _intXi(1, i);
-        _intPhi.col(i) = PhiLagrange.evalPhi(xi, eta);
-        _intPhiXi.col(i) = PhiLagrange.evalPhiX(xi, eta);
-        _intPhiEta.col(i) = PhiLagrange.evalPhiY(xi, eta);
+        for (int i = 0; i < Nq; i++){
+            double xi = _intXi(0, i);
+            double eta = _intXi(1, i);
+            _intPhi.col(i) = PhiLagrange.evalPhi(xi, eta);
+            _intPhiXi.col(i) = PhiLagrange.evalPhiX(xi, eta);
+            _intPhiEta.col(i) = PhiLagrange.evalPhiY(xi, eta);
+        }
     }
 
     // Computes basis functions and their derivative at edge quadrature points
@@ -41,6 +46,7 @@ ReferenceElement::ReferenceElement(int p, int r):
     GaussLegendre1D<> GL1(_r);
     _edgeW = GL1.getWeights(); // weights from 0 to 1;
     Nq = _edgeW.size();
+    std::cout << _edgeW << std::endl;
     auto edgeXiAlt = GL1.getNodes();
     
     for (int edge = 0; edge < 3; edge++){
@@ -51,6 +57,8 @@ ReferenceElement::ReferenceElement(int p, int r):
     }
 
     Eigen::Vector2d p1{0,0}, p2{1,0}, p3{0,1};
+    std::cout << "Computes basis functions and their derivative at edge quadrature points" << std::endl;
+    std::cout << _edgeXi[0].rows() << ", " << _edgeXi[0].cols() << std::endl;
     for (int i = 0; i < Nq; i++){
         _edgeXi[0].col(i) = p2 + (p3-p2)*edgeXiAlt[i]; // edge 0 = hypotnuse
         _edgeXi[1].col(i) = p3 + (p1-p3)*edgeXiAlt[i]; // edge 1 = vertical edge
@@ -70,13 +78,17 @@ ReferenceElement::ReferenceElement(int p, int r):
     // Computes reference mass matrix using quadrature
     std::cout << "Computes reference mass matrix using quadrature" << std::endl;
     Eigen::MatrixXd M(Np, Np);
-    for (int ii = 0; ii < Np; ii++) {
-        for (int jj = ii; jj < Np; jj++) {
-            Eigen::RowVectorXd phiij = _intPhi.row(ii).array() * _intPhi.row(jj).array();
-            M(ii,jj) = phiij*_intW;
-            M(jj,ii) = M(ii,jj);
+    if (p > 0){
+        for (int ii = 0; ii < Np; ii++) {
+            for (int jj = ii; jj < Np; jj++) {
+                Eigen::RowVectorXd phiij = _intPhi.row(ii).array() * _intPhi.row(jj).array();
+                M(ii,jj) = phiij*_intW;
+                M(jj,ii) = M(ii,jj);
+            }
         }
-    }
+    } else M << 1.0;
+    std::cout << "Done computing M." << std::endl;
     _MLLT = M.llt();
     if (_MLLT.info() != Eigen::Success) throw std::runtime_error("ERROR: Unable to factorize the mass matrix.");
+    std::cout << "Done" << std::endl;
 }

@@ -42,38 +42,38 @@ int main() {
     // else if (meshName == "finer") mesh = std::make_shared<TriangularMesh>("projects/Project-2/meshGlobalRefined2.gri", p, q, r);
     // else mesh = std::make_shared<TriangularMesh>("projects/Project-2/meshGlobalRefined3.gri", p, q, r);
 
-    // Inlet conditions
-    double gamma = 1.4;
-    double rho0 = 1;
-    double a0 = 1;
-    double p0 = rho0*a0*a0/gamma;
-    double alpha = 50*mconst::pi/180;
-    double pout = 0.7*p0;
-    double M = 0.1;
+    // // Inlet conditions
+    // double gamma = 1.4;
+    // double rho0 = 1;
+    // double a0 = 1;
+    // double p0 = rho0*a0*a0/gamma;
+    // double alpha = 50*mconst::pi/180;
+    // double pout = 0.7*p0;
+    // double M = 0.1;
 
-    // Boundary conditions
-    std::shared_ptr<InletOutletBC> inlet = std::make_shared<InletOutletBC>(rho0, a0, alpha, pout, gamma);
-    std::shared_ptr<BoundaryCondition> wall = std::make_shared<InviscidWallBC>(gamma);
-    std::shared_ptr<BoundaryCondition> outlet = std::make_shared<OutletBC>(pout, gamma);
-    std::vector<std::shared_ptr<BoundaryCondition>> bc{wall, inlet, wall, outlet};
+    // // Boundary conditions
+    // std::shared_ptr<InletOutletBC> inlet = std::make_shared<InletOutletBC>(rho0, a0, alpha, pout, gamma);
+    // std::shared_ptr<BoundaryCondition> wall = std::make_shared<InviscidWallBC>(gamma);
+    // std::shared_ptr<BoundaryCondition> outlet = std::make_shared<OutletBC>(pout, gamma);
+    // std::vector<std::shared_ptr<BoundaryCondition>> bc{wall, inlet, wall, outlet};
 
-    // Initialize the state mesh
-    StateMesh U(mesh, bc, 4, p);
-    U.state(0).fill(rho0);
-    U.state(1).fill(rho0*M*a0*std::cos(alpha));
-    U.state(2).fill(rho0*M*a0*std::sin(alpha));
-    U.state(3).fill(p0/(gamma-1) + 0.5*rho0*M*M*a0*a0);
+    // // Initialize the state mesh
+    // StateMesh U(mesh, bc, 4, p);
+    // U.state(0).fill(rho0);
+    // U.state(1).fill(rho0*M*a0*std::cos(alpha));
+    // U.state(2).fill(rho0*M*a0*std::sin(alpha));
+    // U.state(3).fill(p0/(gamma-1) + 0.5*rho0*M*M*a0*a0);
 
-    // Solver
-    std::shared_ptr<FVFlux> flux;
-    std::string fluxName;
-    do{
-        std::cout << "Enter flux name (\"roe\" or \"hlle\"): ";
-        std::cin >> fluxName;
-        std::transform(fluxName.begin(), fluxName.end(), fluxName.begin(), [](unsigned char c){ return std::tolower(c); });
-    } while (fluxName != "roe" && fluxName != "hlle");
-    if (fluxName == "roe") flux = std::make_shared<RoeFlux>(gamma);
-    else flux = std::make_shared<HLLEFlux>(gamma);
+    // // Solver
+    // std::shared_ptr<FVFlux> flux;
+    // std::string fluxName;
+    // do{
+    //     std::cout << "Enter flux name (\"roe\" or \"hlle\"): ";
+    //     std::cin >> fluxName;
+    //     std::transform(fluxName.begin(), fluxName.end(), fluxName.begin(), [](unsigned char c){ return std::tolower(c); });
+    // } while (fluxName != "roe" && fluxName != "hlle");
+    // if (fluxName == "roe") flux = std::make_shared<RoeFlux>(gamma);
+    // else flux = std::make_shared<HLLEFlux>(gamma);
 
     // std::shared_ptr<Residual> residual = std::make_shared<FEAdvection>(flux);
     // std::cout << residual->computeResidual(U) << std::endl;

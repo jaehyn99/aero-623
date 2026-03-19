@@ -5,6 +5,8 @@
 
 #include <algorithm>
 
+
+
 CubicSpline::CubicSpline(const Eigen::VectorXd& X, const Eigen::VectorXd& Y, double tol):
     _X(X),
     _Y(Y),

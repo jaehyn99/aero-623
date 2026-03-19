@@ -69,8 +69,6 @@ Lagrange2DBasisFunctions::Lagrange2DBasisFunctions(int p):
 }
 
 Eigen::VectorXd Lagrange2DBasisFunctions::evalPhi(double x, double y) const noexcept{
-    if (_p == 0) return _phi;
-
     Eigen::MatrixXd eval = _phi;
     if (_p >= 1){
         eval.col(1) *= x;
@@ -91,8 +89,6 @@ Eigen::VectorXd Lagrange2DBasisFunctions::evalPhi(double x, double y) const noex
 }
 
 Eigen::VectorXd Lagrange2DBasisFunctions::evalPhiX(double x, double y) const noexcept{
-    if (_p == 0) return Eigen::MatrixXd(); // empty matrix
-
     Eigen::MatrixXd eval = _phix;
     if (_p >= 2){
         eval.col(1) *= x;
@@ -107,8 +103,6 @@ Eigen::VectorXd Lagrange2DBasisFunctions::evalPhiX(double x, double y) const noe
 }
 
 Eigen::VectorXd Lagrange2DBasisFunctions::evalPhiY(double x, double y) const noexcept{
-    if (_p == 0) return Eigen::MatrixXd(); // empty matrix
-
     Eigen::MatrixXd eval = _phiy;
     if (_p >= 2){
         eval.col(1) *= x;
@@ -123,18 +117,21 @@ Eigen::VectorXd Lagrange2DBasisFunctions::evalPhiY(double x, double y) const noe
 }
 
 Eigen::Matrix2Xd Lagrange2DBasisFunctions::getLagrangeNodes() const noexcept{
-	Eigen::Matrix2Xd xiL(2, _Np);
-	Eigen::Matrix<double, 2, 3> V;
-	V << 0, 1, 0,
-         0, 0, 1;
+    Eigen::Matrix2Xd xiL(2, _Np);
+    if (_p == 0) xiL << 0.5, 0.5;
+    else{
+        Eigen::Matrix<double, 2, 3> V;
+        V << 0, 1, 0,
+            0, 0, 1;
 
-	for (int ii = 0; ii < _p + 1; ii++) {
-		for (int jj = 0; jj < _p + 1 - ii; jj++) {
-			for (int kk = 0; kk < 2; kk++){
-				xiL(kk, ii*(_p + 1) - ii*(ii - 1)/2 + jj) = V(kk, 0) + ii*(V(kk, 2) - V(kk, 0))/_p + jj*(V(kk, 1) - V(kk, 0))/_p;
-			}
-		}
-	}
+        for (int ii = 0; ii < _p + 1; ii++) {
+            for (int jj = 0; jj < _p + 1 - ii; jj++) {
+                for (int kk = 0; kk < 2; kk++){
+                    xiL(kk, ii*(_p + 1) - ii*(ii - 1)/2 + jj) = V(kk, 0) + ii*(V(kk, 2) - V(kk, 0))/_p + jj*(V(kk, 1) - V(kk, 0))/_p;
+                }
+            }
+        }
+    }
 	return xiL;
 }
 
