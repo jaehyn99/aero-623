@@ -3,6 +3,7 @@
 
 #include "Eigen/Dense"
 #include "ReferenceElement.h"
+#include <memory>
 #include <string>
 
 class CubicSpline;

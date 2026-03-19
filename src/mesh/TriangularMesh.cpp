@@ -23,6 +23,7 @@ TriangularMesh& TriangularMesh::operator=(TriangularMesh&&) = default;
 TriangularMesh::TriangularMesh(const std::string& fileName, std::size_t p, std::size_t q, std::size_t r):
     _ref(p, r)
 {
+    std::cout << "Beginning" << std::endl;
     std::ifstream f(fileName);
     std::string line;
     std::vector<std::string> v;
@@ -45,6 +46,7 @@ TriangularMesh::TriangularMesh(const std::string& fileName, std::size_t p, std::
     }
 
     // Fill in the boundary faces
+    std::cout << "Fill in boundary faces" << std::endl;
     _faces.reserve(nElemTot); // not exact size, only an approximate
 
     splitNextLine();
@@ -146,6 +148,7 @@ TriangularMesh::TriangularMesh(const std::string& fileName, std::size_t p, std::
     }
 
     // Fill in the elements, interior nodes, and connectivity info
+    std::cout << "Fill in the elements, interior nodes, and connectivity info" << std::endl;
     int Np = (p+1)*(p+2)/2;
     _elems.reserve(nElemTot);
     while (nElemTot > 0){
@@ -303,6 +306,7 @@ TriangularMesh::TriangularMesh(const std::string& fileName, std::size_t p, std::
     }
 
     // Periodic boundaries, manually, only works on this one mesh
+    std::cout << "Periodic boundaries, manually, only works on this one mesh" << std::endl;
     std::deque<int> curve2Faces, curve4Faces, curve6Faces, curve8Faces;
     for (std::size_t i = 0; i < _faces.size(); i++){
         const Face& face = *_faces[i];

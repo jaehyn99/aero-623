@@ -63,17 +63,19 @@ Eigen::MatrixXd FEAdvection::computeResidual(const StateMesh& u) const{
             for (std::size_t i = 0; i < unsigned(Np); i++){
                 // Area integral over the entire element
                 // std::cout << "Computing area integral" << std::endl;
-                for (std::size_t nq = 0; nq < intNq; nq++){
-                    double xi = intXi(0, nq);
-                    double eta = intXi(1, nq);
-                    Eigen::Vector4d u = PhiBasis.funcEval(xi, eta, cell); // state values at the quadrature point
-                    Eigen::Matrix<double,4,2> F = physicalFlux(u, _flux->gamma()); // get fluxes from states
-                    
-                    double detJ = elem.detJacobian(nq);
-                    Eigen::Vector2d gRef{intPhiXi(i,nq), intPhiEta(i,nq)}; // 2-by-1
-                    Eigen::Matrix2d JT = elem.jacobian(nq).transpose(); // 2-by-2
-                    Eigen::Vector2d gPhi = JT.lu().solve(gRef); // 2-by-1
-                    residual.col(k*Np+i) += intW[nq] * detJ * F*gPhi; // (4-by-2)*(2-by-1) = (4-by-1)
+                if (p > 0){
+                    for (std::size_t nq = 0; nq < intNq; nq++){
+                        double xi = intXi(0, nq);
+                        double eta = intXi(1, nq);
+                        Eigen::Vector4d u = PhiBasis.funcEval(xi, eta, cell); // state values at the quadrature point
+                        Eigen::Matrix<double,4,2> F = physicalFlux(u, _flux->gamma()); // get fluxes from states
+                        
+                        double detJ = elem.detJacobian(nq);
+                        Eigen::Vector2d gRef{intPhiXi(i,nq), intPhiEta(i,nq)}; // 2-by-1
+                        Eigen::Matrix2d JT = elem.jacobian(nq).transpose(); // 2-by-2
+                        Eigen::Vector2d gPhi = JT.lu().solve(gRef); // 2-by-1
+                        residual.col(k*Np+i) += intW[nq] * detJ * F*gPhi; // (4-by-2)*(2-by-1) = (4-by-1)
+                    }
                 }
 
                 // Line integral over each of the edges

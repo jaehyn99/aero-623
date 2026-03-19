@@ -2,6 +2,7 @@
 #define STATE_MESH_H
 
 #include "Eigen/Dense"
+#include <memory>
 
 class BoundaryCondition;
 class TriangularMesh;

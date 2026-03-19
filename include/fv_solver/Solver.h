@@ -2,6 +2,7 @@
 #define FV_SOLVER_H
 
 #include "Eigen/Dense"
+#include <memory>
 
 class Residual;
 class StateMesh;

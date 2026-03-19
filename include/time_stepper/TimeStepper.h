@@ -2,6 +2,7 @@
 #define TIME_STEPPER_H
 
 #include "Eigen/Dense"
+#include <memory>
 
 class StateMesh;
 class FVFlux;

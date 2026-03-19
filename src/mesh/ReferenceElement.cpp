@@ -13,6 +13,7 @@ ReferenceElement::ReferenceElement(int p, int r):
     Eigen::Index Np = (_p+1)*(_p+2)/2;
     
     // Computes basis functions and their derivative at internal quadrature points
+    std::cout << "Computes basis functions and their derivative at internal quadrature points" << std::endl;
     GaussLegendre2D<> GL2(_r);
     _intW = GL2.getWeights();
     Eigen::Index Nq = _intW.size();
@@ -36,6 +37,7 @@ ReferenceElement::ReferenceElement(int p, int r):
     }
 
     // Computes basis functions and their derivative at edge quadrature points
+    std::cout << "Computes basis functions and their derivative at edge quadrature points" << std::endl;
     GaussLegendre1D<> GL1(_r);
     _edgeW = GL1.getWeights(); // weights from 0 to 1;
     Nq = _edgeW.size();
@@ -66,6 +68,7 @@ ReferenceElement::ReferenceElement(int p, int r):
     }
 
     // Computes reference mass matrix using quadrature
+    std::cout << "Computes reference mass matrix using quadrature" << std::endl;
     Eigen::MatrixXd M(Np, Np);
     for (int ii = 0; ii < Np; ii++) {
         for (int jj = ii; jj < Np; jj++) {

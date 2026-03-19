@@ -27,8 +27,8 @@ int main() {
 
     std::shared_ptr<TriangularMesh> mesh;
     std::string meshName;
-    std::size_t p = 1;
-    std::size_t q = 3;
+    std::size_t p = 0;
+    std::size_t q = 1;
     std::size_t r = 2*(p+q);
     mesh = std::make_shared<TriangularMesh>("projects/Project-1/test.gri", p, q, r);
 
@@ -75,99 +75,100 @@ int main() {
     if (fluxName == "roe") flux = std::make_shared<RoeFlux>(gamma);
     else flux = std::make_shared<HLLEFlux>(gamma);
 
-    std::shared_ptr<Residual> residual = std::make_shared<FEAdvection>(flux);
-    // int FVOrder;
-    // do{
-    //     std::cout << "Enter finite-volume order of accuracy (1 or 2): ";
-    //     std::cin >> FVOrder;
-    // } while (FVOrder != 1 && FVOrder != 2);
-    // if (FVOrder == 1) residual = std::make_shared<FVAdvectionFirstOrder>(flux);
-    // else{
-    //     U.setGradientMethod(std::make_shared<HybridWalkPNGrad>());
-    //     int useLimiter;
-    //     do{
-    //         std::cout << "Will a BJ limiter be used (0 = No, 1 = Yes)";
-    //         std::cin >> useLimiter;
-    //     } while (useLimiter != 0 && useLimiter != 1);
-    //     residual = std::make_shared<FVAdvectionSecondOrder>(flux, useLimiter==1);
-    // }
+    // std::shared_ptr<Residual> residual = std::make_shared<FEAdvection>(flux);
+    // std::cout << residual->computeResidual(U) << std::endl;
+    // // int FVOrder;
+    // // do{
+    // //     std::cout << "Enter finite-volume order of accuracy (1 or 2): ";
+    // //     std::cin >> FVOrder;
+    // // } while (FVOrder != 1 && FVOrder != 2);
+    // // if (FVOrder == 1) residual = std::make_shared<FVAdvectionFirstOrder>(flux);
+    // // else{
+    // //     U.setGradientMethod(std::make_shared<HybridWalkPNGrad>());
+    // //     int useLimiter;
+    // //     do{
+    // //         std::cout << "Will a BJ limiter be used (0 = No, 1 = Yes)";
+    // //         std::cin >> useLimiter;
+    // //     } while (useLimiter != 0 && useLimiter != 1);
+    // //     residual = std::make_shared<FVAdvectionSecondOrder>(flux, useLimiter==1);
+    // // }
     
-    std::shared_ptr<TimeIntegrator> integrator;
-    int timeOrder;
-    do{
-        std::cout << "Enter time integration order of accuracy (3 or 4): ";
-        std::cin >> timeOrder;    
-    } while (timeOrder != 3 && timeOrder != 4);
-    if (timeOrder == 3) integrator = std::make_shared<SSP_RK3>();
-    else integrator = std::make_shared<RK4>();
-
-    std::shared_ptr<TimeStepper> stepper = std::make_shared<LocalTimeStepper>(1, gamma, flux);
-    std::unique_ptr<Solver> solver = std::make_unique<FESteadySolver>(residual, integrator, stepper);
-    int steadyState = 1;
-    
-    // int saveEveryNIterations, maxIterations;
+    // std::shared_ptr<TimeIntegrator> integrator;
+    // int timeOrder;
     // do{
-    //     std::cout << "Enter solver mode (0 = unsteady, 1 = steady): ";
-    //     std::cin >> steadyState;
-    // } while (steadyState != 0 && steadyState != 1);
-    // if (steadyState == 1) solver = std::make_unique<FVSteadySolver>(residual, integrator, stepper);
-    // else{
-    //     inlet->setTransient(true);
-    //     do{
-    //         std::cout << "Enter the frequency (after every how many iterations) that data are saved: ";
-    //         std::cin >> saveEveryNIterations;
-    //     } while (saveEveryNIterations < 1);
-    //     do{
-    //         std::cout << "Enter the maximum number of iterations: ";
-    //         std::cin >> maxIterations;
-    //     } while (maxIterations < 1);
-    //     solver = std::make_unique<FVUnSteadySolver>(residual, integrator, stepper, saveEveryNIterations, maxIterations);
-    // }
+    //     std::cout << "Enter time integration order of accuracy (3 or 4): ";
+    //     std::cin >> timeOrder;    
+    // } while (timeOrder != 3 && timeOrder != 4);
+    // if (timeOrder == 3) integrator = std::make_shared<SSP_RK3>();
+    // else integrator = std::make_shared<RK4>();
 
-    try{
-        // if (FVOrder == 2 || steadyState == 0){
-        //     // Creates a helper solver for second-order or unsteady simulations first
-        //     std::shared_ptr<Residual> helperResidual = std::make_shared<FVAdvectionFirstOrder>(flux);
-        //     FVSteadySolver helperSolver(helperResidual, integrator, stepper);
-        //     helperSolver.solve(U);
-        // }
+    // std::shared_ptr<TimeStepper> stepper = std::make_shared<LocalTimeStepper>(1, gamma, flux);
+    // std::unique_ptr<Solver> solver = std::make_unique<FESteadySolver>(residual, integrator, stepper);
+    // int steadyState = 1;
 
-        solver->solve(U);
-        // std::vector<Eigen::MatrixXd> results = solver->getResult(); // size = 1 if steady, more than 1 if unsteady
-        // std::vector<double> l1norm = solver->getNorm();
+    // // int saveEveryNIterations, maxIterations;
+    // // do{
+    // //     std::cout << "Enter solver mode (0 = unsteady, 1 = steady): ";
+    // //     std::cin >> steadyState;
+    // // } while (steadyState != 0 && steadyState != 1);
+    // // if (steadyState == 1) solver = std::make_unique<FVSteadySolver>(residual, integrator, stepper);
+    // // else{
+    // //     inlet->setTransient(true);
+    // //     do{
+    // //         std::cout << "Enter the frequency (after every how many iterations) that data are saved: ";
+    // //         std::cin >> saveEveryNIterations;
+    // //     } while (saveEveryNIterations < 1);
+    // //     do{
+    // //         std::cout << "Enter the maximum number of iterations: ";
+    // //         std::cin >> maxIterations;
+    // //     } while (maxIterations < 1);
+    // //     solver = std::make_unique<FVUnSteadySolver>(residual, integrator, stepper, saveEveryNIterations, maxIterations);
+    // // }
 
-        // std::vector<std::size_t> iter;
-        // if (steadyState == 1) iter = {0};
-        // else{
-        //     iter.resize(results.size());
-        //     for (std::size_t i = 0; i < results.size(); i++) iter[i] = i;
-        // }
+    // try{
+    //     // if (FVOrder == 2 || steadyState == 0){
+    //     //     // Creates a helper solver for second-order or unsteady simulations first
+    //     //     std::shared_ptr<Residual> helperResidual = std::make_shared<FVAdvectionFirstOrder>(flux);
+    //     //     FVSteadySolver helperSolver(helperResidual, integrator, stepper);
+    //     //     helperSolver.solve(U);
+    //     // }
 
-        // std::ofstream file;
-        // std::string resultFilePath = "projects/Project-2/results/";
-        // resultFilePath += meshName + "_mesh_";
-        // resultFilePath += (steadyState == 0) ? "unsteady_" : "steady_";
-        // resultFilePath += (FVOrder == 1) ? "firstorder_" : "secondorder_";
-        // resultFilePath += (timeOrder == 2) ? "RK2_" : "RK3_";
-        // resultFilePath += fluxName;
+    //     solver->solve(U);
+    //     // std::vector<Eigen::MatrixXd> results = solver->getResult(); // size = 1 if steady, more than 1 if unsteady
+    //     // std::vector<double> l1norm = solver->getNorm();
+
+    //     // std::vector<std::size_t> iter;
+    //     // if (steadyState == 1) iter = {0};
+    //     // else{
+    //     //     iter.resize(results.size());
+    //     //     for (std::size_t i = 0; i < results.size(); i++) iter[i] = i;
+    //     // }
+
+    //     // std::ofstream file;
+    //     // std::string resultFilePath = "projects/Project-2/results/";
+    //     // resultFilePath += meshName + "_mesh_";
+    //     // resultFilePath += (steadyState == 0) ? "unsteady_" : "steady_";
+    //     // resultFilePath += (FVOrder == 1) ? "firstorder_" : "secondorder_";
+    //     // resultFilePath += (timeOrder == 2) ? "RK2_" : "RK3_";
+    //     // resultFilePath += fluxName;
         
-        // file.open(resultFilePath + "_norm.txt");
-        // for (auto norm: l1norm) file << norm << "\n";
-        // file.close();
+    //     // file.open(resultFilePath + "_norm.txt");
+    //     // for (auto norm: l1norm) file << norm << "\n";
+    //     // file.close();
 
-        // for (auto it: iter){
-        //     if (steadyState == 0){
-        //         std::string resultFilePathAtIter = resultFilePath + "_t_" + std::to_string(it*0.045*saveEveryNIterations);
-        //         file.open(resultFilePathAtIter + ".txt");
-        //     } else file.open(resultFilePath + ".txt");
-        //     for (Eigen::Index e = 0; e < U.cellCount(); e++) file << results[it].col(e).transpose() << "\n";
-        //     file.close();
-        // }
+    //     // for (auto it: iter){
+    //     //     if (steadyState == 0){
+    //     //         std::string resultFilePathAtIter = resultFilePath + "_t_" + std::to_string(it*0.045*saveEveryNIterations);
+    //     //         file.open(resultFilePathAtIter + ".txt");
+    //     //     } else file.open(resultFilePath + ".txt");
+    //     //     for (Eigen::Index e = 0; e < U.cellCount(); e++) file << results[it].col(e).transpose() << "\n";
+    //     //     file.close();
+    //     // }
        
-    } catch (std::runtime_error& ex){
-        std::cerr << ex.what() << std::endl;
-        std::ofstream f("debug.txt");
-    }
+    // } catch (std::runtime_error& ex){
+    //     std::cerr << ex.what() << std::endl;
+    //     std::ofstream f("debug.txt");
+    // }
 
-    // return 0;
+    // // return 0;
 }

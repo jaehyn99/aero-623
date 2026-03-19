@@ -11,7 +11,7 @@ class Quadrature{
     public:
     using RangeType = std::conditional_t<M == 1, double, Eigen::Matrix<double, M, 1>>;
     using Function = std::conditional_t<N == 1, std::function<RangeType(double)>, std::function<RangeType(double, double)>>;
-    using IntegrationDomain = Eigen::Vector<double, 2*N>; // Vector2d if N = 1, Vector4d if N = 2
+    using IntegrationDomain = Eigen::Matrix<double, 2*N, 1>; // Vector2d if N = 1, Vector4d if N = 2
 
     virtual ~Quadrature() = default;
     // J is the vector of Jacobian determinants at the corresponding quadrature nodes, used to scale the contribution of each quadrature node

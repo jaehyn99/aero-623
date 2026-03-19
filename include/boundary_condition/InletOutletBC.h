@@ -2,6 +2,8 @@
 #define INLET_OUTLET_BC_H
 
 #include "BoundaryCondition.h"
+#include <memory>
+
 class InletBC;
 class OutletBC;
 class InletOutletBC: public BoundaryCondition {
