@@ -20,9 +20,6 @@ class Lagrange2DBasisFunctions{
     Eigen::VectorXd evalPhiX(double x, double y) const noexcept; // _phix evaluated at x and y
     Eigen::VectorXd evalPhiY(double x, double y) const noexcept; // _phiy evaluated at x and y
 
-    // Compute the Lagrange nodes
-    Eigen::Matrix2Xd getLagrangeNodes() const noexcept;
-
     // Evaluation of a function (given by the associated weights) and its derivatives
     double funcEval (double x, double y, const Eigen::VectorXd& coeff);
     double funcXEval(double x, double y, const Eigen::VectorXd& coeff);
@@ -41,6 +38,8 @@ class Lagrange2DBasisFunctions{
     Eigen::MatrixXd _phix; // matrix of x-derivative coefficients, each row is a basis with the monomial coefficients given in the columns
     Eigen::MatrixXd _phiy; // matrix of y-derivative coefficients, each row is a basis with the monomial coefficients given in the columns
     Eigen::Matrix2Xd _nodes; // Lagrange nodes on a unit right triangle
+
+    Eigen::Matrix2Xd getLagrangeNodes() const noexcept; // Compute the Lagrange nodes
 };
 
 #endif

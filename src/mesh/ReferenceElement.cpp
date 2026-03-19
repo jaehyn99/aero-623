@@ -9,7 +9,7 @@ ReferenceElement::ReferenceElement(int p, int r):
     _r(r)
 {
     Lagrange2DBasisFunctions PhiLagrange(_p);
-    _xiL = PhiLagrange.getLagrangeNodes();
+    _xiL = PhiLagrange.nodes();
     Eigen::Index Np = (_p+1)*(_p+2)/2;
     
     // Computes basis functions and their derivative at internal quadrature points

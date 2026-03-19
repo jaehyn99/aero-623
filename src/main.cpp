@@ -106,7 +106,7 @@ int main() {
     std::shared_ptr<TimeIntegrator> integrator;
     int timeOrder;
     do{
-        std::cout << "Enter time integration order of accuracy (2 or 3): ";
+        std::cout << "Enter time integration order of accuracy (3 or 4): ";
         std::cin >> timeOrder;    
     } while (timeOrder != 3 && timeOrder != 4);
     if (timeOrder == 3) integrator = std::make_shared<SSP_RK3>();

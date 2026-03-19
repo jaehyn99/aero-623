@@ -18,9 +18,6 @@ class Lagrange1DBasisFunctions{
     Eigen::VectorXd evalPhi (double x) const noexcept; // _phi evaluated at x and y
     Eigen::VectorXd evalPhiX(double x) const noexcept; // _phix evaluated at x and y
 
-    // Compute the Lagrange nodes
-    Eigen::Matrix2Xd getLagrangeNodes() const noexcept;
-
     // Evaluation of a function (given by the associated weights) and its derivatives
     double funcEval (double x, const Eigen::VectorXd& coeff);
     double funcXEval(double x, const Eigen::VectorXd& coeff);
@@ -29,7 +26,6 @@ class Lagrange1DBasisFunctions{
     // coeff is of dimension Ns*Np, where Ns = number of states, Np = number of basis functions;
     Eigen::VectorXd funcEval (double x, const Eigen::MatrixXd& coeff);
     Eigen::VectorXd funcXEval(double x, const Eigen::MatrixXd& coeff);
-    Eigen::VectorXd funcYEval(double x, const Eigen::MatrixXd& coeff);
 
     protected:
     int _p; // polynomial order
