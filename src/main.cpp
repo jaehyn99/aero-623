@@ -24,23 +24,59 @@
 #include "Lagrange2DBasisFunctions.h"
 
 int main() {
-
     std::shared_ptr<TriangularMesh> mesh;
     std::string meshName;
-    std::size_t p = 0;
-    std::size_t q = 1;
-    std::size_t r = 2*(p+q);
-    mesh = std::make_shared<TriangularMesh>("projects/Project-3/test2.gri", p, q, r);
 
+    // std::cout << std::endl;
+    // for (int k = 0; k < int(mesh->numElems()); k++){
+    //     std::cout << "Element " << k << " has these points: " << std::endl;
+    //     const Element& elem = mesh->elem(k);
+    //     for (int i = 0; i < 3; i++){
+    //         std::cout << "\tPoint " << elem.pointID(i) << " at [" << mesh->node(elem.pointID(i)).transpose() << "]." << std::endl; 
+    //     }
+
+    //     std::cout << "Element " << k << " has these edges: " << std::endl;
+    //     for (int i = 0; i < 3; i++){
+    //         const Face& face = mesh->face(elem.faceID(i));
+    //         std::cout << "\tEdge " << elem.faceID(i) << " containing points " << face.pointID(0) << " and " << face.pointID(1) << ". ";
+    //         if (face.isBoundaryFace()){
+    //             std::cout << "It is on boundary " << face.title();
+    //             std::cout << ". Normal vector = " << face.normal().transpose();
+    //         } else if (face.isPeriodicFace()){
+    //             std::cout << "It is periodic with element " << (face.elemID(0) == k ? face.elemID(1) : face.elemID(0));
+    //             std::cout << ". Normal vector = " << face.normal().transpose() << " pointing from " << face.elemID(0) << " to " << face.elemID(1);
+    //         } else{
+    //             std::cout << "It is an internal edge and neighbors element " << (face.elemID(0) == k ? face.elemID(1) : face.elemID(0));
+    //             std::cout << ". Normal vector = " << face.normal().transpose() << " pointing from " << face.elemID(0) << " to " << face.elemID(1); 
+    //         }
+    //         std::cout << "." << std::endl;
+    //     }
+    //     std::cout << std::endl;
+    // }
+
+    do{
+        std::cout << "Enter mesh name (\"test\", \"coarse\", \"fine\", \"finer\", or \"finest\"): ";
+        std::cin >> meshName;
+        std::transform(meshName.begin(), meshName.end(), meshName.begin(), [](unsigned char c){ return std::tolower(c); });
+    } while (meshName != "test" && meshName != "coarse" && meshName != "fine" && meshName != "finer" && meshName != "finest");
+
+    std::size_t p = 0; // Lagrange order for solution approx
+    std::size_t q = 1; // Lagrange order for geometry approx
     // do{
-    //     std::cout << "Enter mesh name (\"coarse\", \"fine\", \"finer\", or \"finest\"): ";
-    //     std::cin >> meshName;
-    //     std::transform(meshName.begin(), meshName.end(), meshName.begin(), [](unsigned char c){ return std::tolower(c); });
-    // } while (meshName != "coarse" && meshName != "fine" && meshName != "finer" && meshName != "finest");
-    // if (meshName == "coarse") mesh = std::make_shared<TriangularMesh>("projects/Project-2/mesh_refined_2394.gri", p, q, r);
-    // else if (meshName == "fine") mesh = std::make_shared<TriangularMesh>("projects/Project-2/meshGlobalRefined1.gri", p, q, r);
-    // else if (meshName == "finer") mesh = std::make_shared<TriangularMesh>("projects/Project-2/meshGlobalRefined2.gri", p, q, r);
-    // else mesh = std::make_shared<TriangularMesh>("projects/Project-2/meshGlobalRefined3.gri", p, q, r);
+    //     std::cout << "Enter the Lagrange polynomial order for solution approximation (p = 0, 1, 2, or 3): ";
+    //     std::cin >> p;
+    // } while (p < 0 || p > 3);
+    // do{
+    //     std::cout << "Enter the Lagrange polynomial order for geometry approximation (q = 1 or 3): ";
+    //     std::cin >> q;
+    // } while (q != 1 && q != 3);    
+    std::size_t r = 2*(p+q);
+
+    if (meshName == "test") mesh = std::make_shared<TriangularMesh>("projects/Project-3/test2.gri", p, q, r, false);
+    else if (meshName == "coarse") mesh = std::make_shared<TriangularMesh>("projects/Project-2/mesh_refined_2394.gri", p, q, r);
+    else if (meshName == "fine") mesh = std::make_shared<TriangularMesh>("projects/Project-2/meshGlobalRefined1.gri", p, q, r);
+    else if (meshName == "finer") mesh = std::make_shared<TriangularMesh>("projects/Project-2/meshGlobalRefined2.gri", p, q, r);
+    else mesh = std::make_shared<TriangularMesh>("projects/Project-2/meshGlobalRefined3.gri", p, q, r);
 
     // Inlet conditions
     double gamma = 1.4;
@@ -52,12 +88,19 @@ int main() {
     double M = 0.1;
 
     // Boundary conditions
-    std::shared_ptr<InletOutletBC> inlet = std::make_shared<InletOutletBC>(rho0, a0, alpha, pout, gamma);
-    std::shared_ptr<BoundaryCondition> wall = std::make_shared<InviscidWallBC>(gamma);
-    std::shared_ptr<BoundaryCondition> outlet = std::make_shared<OutletBC>(pout, gamma);
-    std::vector<std::shared_ptr<BoundaryCondition>> bc{wall, inlet, wall, outlet};
+    // std::shared_ptr<InletOutletBC> inlet = std::make_shared<InletOutletBC>(rho0, a0, alpha, pout, gamma);
+    // std::shared_ptr<BoundaryCondition> wall = std::make_shared<InviscidWallBC>(gamma);
+    // std::shared_ptr<BoundaryCondition> outlet = std::make_shared<OutletBC>(pout, gamma);
+    // std::vector<std::shared_ptr<BoundaryCondition>> bc{wall, inlet, wall, outlet};
+    std::shared_ptr<InletBC> inlet = std::make_shared<InletBC>(rho0, a0, alpha, gamma);
+    std::vector<std::shared_ptr<BoundaryCondition>> bc{nullptr, nullptr, nullptr, nullptr};
 
     // Initialize the state mesh
+    double rhoi = rho0;
+    double rhoui = rho0*M*a0*std::cos(alpha);
+    double rhovi = rho0*M*a0*std::sin(alpha);
+    double rhoEi = p0/(gamma-1) + 0.5*rho0*M*M*a0*a0;
+
     StateMesh U(mesh, bc, 4, p);
     U.state(0).fill(rho0);
     U.state(1).fill(rho0*M*a0*std::cos(alpha));
@@ -76,7 +119,8 @@ int main() {
     else flux = std::make_shared<HLLEFlux>(gamma);
 
     std::shared_ptr<Residual> residual = std::make_shared<FEAdvection>(flux);
-    // std::cout << residual->computeResidual(U) << std::endl;
+    std::cout << residual->computeResidual(U) << std::endl;
+
     // // int FVOrder;
     // // do{
     // //     std::cout << "Enter finite-volume order of accuracy (1 or 2): ";
@@ -134,7 +178,17 @@ int main() {
         // }
 
         solver->solve(U);
-        // std::vector<Eigen::MatrixXd> results = solver->getResult(); // size = 1 if steady, more than 1 if unsteady
+        std::vector<Eigen::MatrixXd> results = solver->getResult(); // size = 1 if steady, more than 1 if unsteady
+        for (auto& Ui: results){
+            Ui.row(0).array() -= rhoi;
+            Ui.row(1).array() -= rhoui;
+            Ui.row(2).array() -= rhovi;
+            Ui.row(3).array() -= rhoEi;
+        }
+        std::cout << results[0] << std::endl << std::endl;
+        std::cout << results[1] << std::endl << std::endl;
+        std::cout << results[2] << std::endl << std::endl;
+        
         // std::vector<double> l1norm = solver->getNorm();
 
         // std::vector<std::size_t> iter;
@@ -145,11 +199,12 @@ int main() {
         // }
 
         // std::ofstream file;
-        // std::string resultFilePath = "projects/Project-2/results/";
+        // std::string resultFilePath = "projects/Project-3/results/";
         // resultFilePath += meshName + "_mesh_";
         // resultFilePath += (steadyState == 0) ? "unsteady_" : "steady_";
-        // resultFilePath += (FVOrder == 1) ? "firstorder_" : "secondorder_";
-        // resultFilePath += (timeOrder == 2) ? "RK2_" : "RK3_";
+        // resultFilePath += "p" + std::to_string(p) + "_";
+        // resultFilePath += "q" + std::to_string(q) + "_";
+        // resultFilePath += (timeOrder == 3) ? "RK3_" : "RK4_";
         // resultFilePath += fluxName;
         
         // file.open(resultFilePath + "_norm.txt");
@@ -167,8 +222,7 @@ int main() {
        
     } catch (std::runtime_error& ex){
         std::cerr << ex.what() << std::endl;
-        std::ofstream f("debug.txt");
     }
 
-    // return 0;
+    return 0;
 }

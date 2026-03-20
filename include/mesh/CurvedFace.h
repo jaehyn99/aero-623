@@ -8,7 +8,7 @@ class CurvedFace: public Face{
     CurvedFace(const Eigen::Vector2i&, double, int, std::string="");
 
     bool isCurvedFace() const noexcept override{ return true; }
-    Eigen::Vector2d normal(std::size_t q) const noexcept{ return _n.col(q); }
+    Eigen::Vector2d normal(std::size_t q) const noexcept override{ return _n.col(q); }
     double detJ(std::size_t q) const noexcept override{ return _detJ[q]; }
 
     protected:

@@ -18,6 +18,8 @@ class Face{
     int elemID(Eigen::Index i) const noexcept{ return _elemID[i]; }
     double length() const noexcept{ return _length; }
     std::string title() const noexcept{ return _title; }
+    int periodicFaceID() const noexcept{ return _periodicFaceID; }
+
     virtual Eigen::Vector2d normal(std::size_t=0) const noexcept = 0; // get the normal vector at the specified quadrature point
     virtual double detJ(std::size_t=0) const noexcept = 0; // get the Jacobian determinant (ds/dsigma) at the specified quadrature point
     
@@ -26,6 +28,7 @@ class Face{
     Eigen::Vector2i _elemID = Eigen::Vector2i::Constant(-1); // neighboring element indices, fill in during construction of TriangularMesh
     double _length;
     std::string _title;
+    int _periodicFaceID = -1;
 };
 
 #endif

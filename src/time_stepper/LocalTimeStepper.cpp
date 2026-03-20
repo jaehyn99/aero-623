@@ -45,7 +45,9 @@ Eigen::ArrayXd LocalTimeStepper::dt(const StateMesh& u) const noexcept{
                 bcNames.push_back(face.title());
                 boundaryID = bcNames.size()-1;
             } else boundaryID = it - bcNames.cbegin();
-            Eigen::Vector4d Ub = u.bc(boundaryID)->computeBoundaryState(ue, normal); // last entry is speed of sound, not energy
+            Eigen::Vector4d Ub;
+            if (u.bc(boundaryID)) Ub = u.bc(boundaryID)->computeBoundaryState(ue, normal); // last entry is speed of sound, not energy
+            else Ub = ue;
             sFace[i] = _flux->computeWaveSpeed(ue, Ub, normal, cL, Ub[3]);
         } else{
             Eigen::Index ne = face.elemID(1);

@@ -16,7 +16,7 @@ class TriangularMesh{
         q = number of Lagrange nodes for curved edge construction
         r = quadrature order of accuracy
     */
-    TriangularMesh(const std::string& file_name, std::size_t p, std::size_t q, std::size_t r);
+    TriangularMesh(const std::string& file_name, std::size_t p, std::size_t q, std::size_t r, bool oneBased=true);
     TriangularMesh(TriangularMesh&&);
     ~TriangularMesh();
     TriangularMesh& operator=(TriangularMesh&&);

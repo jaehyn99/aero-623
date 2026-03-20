@@ -39,7 +39,6 @@ void FESteadySolver::solve(StateMesh& u) const{
                 R.middleCols(k*Np, Np).transpose() = ref.MLLT().solve(Rk);
             }
         }
-        // std::cout << R.middleCols(0, Np) << std::endl << std::endl;
         return R;
     };
 
@@ -52,14 +51,12 @@ void FESteadySolver::solve(StateMesh& u) const{
     while (!isConverged){
         Eigen::ArrayXd dt = _stepper->dt(u);
         _integrator->integrate(func, u.matrix(), 0, dt);
-        std::cout << u.cell(0) << std::endl << std::endl;
-        //std::cout << u.cell(1) << std::endl << std::endl;
-        assert(false);
-        //u.computeGradient();
         norm = func(0, u.matrix()).lpNorm<1>();
         _l1norm.push_back(norm);
         isConverged = norm/_l1norm.front() <= _tol;
         iter++;
+        _result.emplace_back(u.matrix());
+        if (iter == 3) break;
     }
     _result.emplace_back(u.matrix());
 }

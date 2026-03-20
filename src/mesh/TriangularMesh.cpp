@@ -20,7 +20,7 @@ TriangularMesh::TriangularMesh(TriangularMesh&&) = default;
 TriangularMesh::~TriangularMesh() = default;
 TriangularMesh& TriangularMesh::operator=(TriangularMesh&&) = default;
 
-TriangularMesh::TriangularMesh(const std::string& fileName, std::size_t p, std::size_t q, std::size_t r):
+TriangularMesh::TriangularMesh(const std::string& fileName, std::size_t p, std::size_t q, std::size_t r, bool oneBased):
     _ref(p, r)
 {
     // std::cout << "Beginning" << std::endl;
@@ -58,8 +58,8 @@ TriangularMesh::TriangularMesh(const std::string& fileName, std::size_t p, std::
         std::string title = v[2];
         for (std::size_t j = 0; j < nBFace; j++){
             splitNextLine();
-            std::size_t ind1 = std::stoi(v[0]) - 1;
-            std::size_t ind2 = std::stoi(v[1]) - 1;
+            std::size_t ind1 = std::stoi(v[0]) - int(oneBased);
+            std::size_t ind2 = std::stoi(v[1]) - int(oneBased);
             Eigen::Vector2i pointID{ind1, ind2};
             double length = (_nodes[ind1] - _nodes[ind2]).lpNorm<2>();
             if (q == 1 || (title != "Curve1" && title != "Curve5"))
@@ -159,9 +159,9 @@ TriangularMesh::TriangularMesh(const std::string& fileName, std::size_t p, std::
         nElemTot -= nElem;
         for (int i = 0; i < int(nElem); i++){
             splitNextLine();
-            std::size_t ind1 = std::stoi(v[0]) - 1;
-            std::size_t ind2 = std::stoi(v[1]) - 1;
-            std::size_t ind3 = std::stoi(v[2]) - 1;
+            std::size_t ind1 = std::stoi(v[0]) - int(oneBased);
+            std::size_t ind2 = std::stoi(v[1]) - int(oneBased);
+            std::size_t ind3 = std::stoi(v[2]) - int(oneBased);
             Eigen::Vector3i pointID{int(ind1), int(ind2), int(ind3)};
             Eigen::Vector3i faceID;
             Eigen::Vector3d length;
@@ -325,8 +325,10 @@ TriangularMesh::TriangularMesh(const std::string& fileName, std::size_t p, std::
         if (elemL > elemR) std::swap(elemL, elemR);
         _faces[curve2ID]->_elemID[0] = elemL;
         _faces[curve2ID]->_elemID[1] = elemR;
+        _faces[curve2ID]->_periodicFaceID = curve4ID;
         _faces[curve4ID]->_elemID[0] = elemL;
-        _faces[curve4ID]->_elemID[1] = elemR;        
+        _faces[curve4ID]->_elemID[1] = elemR;
+        _faces[curve4ID]->_periodicFaceID = curve2ID;  
     }
 
     // Matching curve6 and curve8
@@ -338,30 +340,50 @@ TriangularMesh::TriangularMesh(const std::string& fileName, std::size_t p, std::
         if (elemL > elemR) std::swap(elemL, elemR);
         _faces[curve6ID]->_elemID[0] = elemL;
         _faces[curve6ID]->_elemID[1] = elemR;
+        _faces[curve6ID]->_periodicFaceID = curve8ID;
         _faces[curve8ID]->_elemID[0] = elemL;
-        _faces[curve8ID]->_elemID[1] = elemR;   
+        _faces[curve8ID]->_elemID[1] = elemR; 
+        _faces[curve8ID]->_periodicFaceID = curve6ID;
     }
 
-    // Update normal vectors on each edge, always pointing from L to R
+    // Update normal vectors on each edge, always clpointing from L to R
     for (int i = 0; i < int(numFaces()); i++){
         // Construct a unit normal vector
         if (LinearFace* lFace = dynamic_cast<LinearFace*>(_faces[i].get())){
-            const Element& elem = *_elems[lFace->_elemID[0]];
+            Element* elem = _elems[lFace->_elemID[0]].get();
+            // std::cout << "The left element of edge " << i << " is element " << lFace->_elemID[0] << std::endl;
 
             std::size_t localFaceID;
-            if (elem._pointID[0] == i) localFaceID = 0;
-            else if (elem._pointID[1] == i) localFaceID = 1;
-            else localFaceID = 2;
+            bool onElemR = false; // for periodic edges, the element it is not on may be elemL
+            if (elem->faceID(0) == i) localFaceID = 0;
+            else if (elem->faceID(1) == i) localFaceID = 1;
+            else if (elem->faceID(2) == i) localFaceID = 2;
+            else{
+                elem = _elems[lFace->_elemID[1]].get();
+                onElemR = true;
+                if (elem->faceID(0) == i) localFaceID = 0;
+                else if (elem->faceID(1) == i) localFaceID = 1;
+                else localFaceID = 2;                
+            }
+            // std::cout << "This edge is edge " << localFaceID << " of element " << (onElemR ? lFace->_elemID[1] : lFace->_elemID[0]) << std::endl;
 
             Eigen::Vector2d edge = node(lFace->_pointID[1]) - node(lFace->_pointID[0]);
+            // std::cout << "The vector connecting points " << node(lFace->_pointID[0]).transpose() << " and " << node(lFace->_pointID[1]).transpose() << " is " << edge.transpose() << std::endl;
             Eigen::Vector2d normal = Eigen::Vector2d{-edge[1], edge[0]};
             normal.normalize();
+            // std::cout << "The (unflipped) unit normal vector is " << normal.transpose() << std::endl;
 
             // Find the remaining point on the "left" element and direct normal away from it
-            const Eigen::Vector2d& p1 = node(elem._pointID[localFaceID]); // Point not on this edge
-            const Eigen::Vector2d& p2 = node(elem._pointID[(localFaceID+1)%3]); // One of the points on this edge
-            if ((p1-p2).dot(normal) > 0) normal *= -1;
+            const Eigen::Vector2d& p1 = node(elem->_pointID[localFaceID]); // Point not on this edge
+            const Eigen::Vector2d& p2 = node(elem->_pointID[(localFaceID+1)%3]); // One of the points on this edge
+            bool pointsIn = (p1-p2).dot(normal) > 0;
+            // std::cout << "A point on this edge is " << p2.transpose() << ", and the point on " << (onElemR ? "elemR" : "elemL") << " but not on this edge is " << p1.transpose() << std::endl;
+            if (onElemR ^ pointsIn){ // flips if pointing into elemL or pointing out of elemR
+                normal *= -1;
+                // std::cout << "Flipping normal to " << normal.transpose() << std::endl;
+            } // else std::cout << "Normal has correct orientation, not flipping. It stays " << normal.transpose() << std::endl;
             lFace->_n = normal;
+            // std::cout << std::endl;
         }
     }
 }
