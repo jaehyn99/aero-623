@@ -1,5 +1,6 @@
 #include "SSP_RK3.h"
 #include "StateMesh.h"
+#include <iostream>
 
 void SSP_RK3::integrate(const Function& f, Eigen::MatrixXd& u0, double t, double dt) const{
     Eigen::MatrixXd u1 = u0 + dt*f(t, u0);

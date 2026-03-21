@@ -1,2 +1,7 @@
-add_executable(testWall flux/testWall.cpp)
-target_link_libraries(testWall core)
+add_executable(testGlobalElement
+    mesh/testGlobalElement.cpp
+)
+
+target_link_libraries(testGlobalElement
+    PRIVATE globalElement
+)

@@ -1,10 +1,10 @@
 #ifndef FV_STEADY_SOLVER_H
 #define FV_STEADY_SOLVER_H
 
-#include "FVSolver.h"
-class FVSteadySolver: public FVSolver{
+#include "Solver.h"
+class FVSteadySolver: public Solver{
     public:
-    FVSteadySolver(std::shared_ptr<FVResidual>, std::shared_ptr<TimeIntegrator>, std::shared_ptr<TimeStepper>, double tol=1e-5);
+    FVSteadySolver(std::shared_ptr<Residual>, std::shared_ptr<TimeIntegrator>, std::shared_ptr<TimeStepper>, double tol=1e-5);
     void solve(StateMesh&) const override;
 
     protected:

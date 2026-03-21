@@ -1,0 +1,5 @@
+---
+triple:          'arm64-apple-darwin'
+binary-path:     '/Users/niranjannanjappa/Coursework_Umich/CFD_2/aero-623/src/curved_mesh/geom_snap'
+relocations:     []
+...
