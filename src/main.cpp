@@ -7,8 +7,7 @@
 #include "Face.h"
 #include "FEAdvection.h"
 #include "FESteadySolver.h"
-#include "GaussLegendre1D.h"
-#include "GaussLegendre2D.h"
+#include "FreeStreamBC.h"
 #include "HLLEFlux.h"
 #include "InletBC.h"
 #include "InletOutletBC.h"
@@ -88,24 +87,24 @@ int main() {
     double M = 0.1;
 
     // Boundary conditions
-    // std::shared_ptr<InletOutletBC> inlet = std::make_shared<InletOutletBC>(rho0, a0, alpha, pout, gamma);
-    // std::shared_ptr<BoundaryCondition> wall = std::make_shared<InviscidWallBC>(gamma);
-    // std::shared_ptr<BoundaryCondition> outlet = std::make_shared<OutletBC>(pout, gamma);
+    std::shared_ptr<InletOutletBC> inlet = std::make_shared<InletOutletBC>(rho0, a0, alpha, pout, gamma);
+    std::shared_ptr<BoundaryCondition> wall = std::make_shared<InviscidWallBC>(gamma);
+    std::shared_ptr<BoundaryCondition> outlet = std::make_shared<OutletBC>(pout, gamma);
     // std::vector<std::shared_ptr<BoundaryCondition>> bc{wall, inlet, wall, outlet};
-    std::shared_ptr<InletBC> inlet = std::make_shared<InletBC>(rho0, a0, alpha, gamma);
-    std::vector<std::shared_ptr<BoundaryCondition>> bc{nullptr, nullptr, nullptr, nullptr};
+    std::shared_ptr<FreeStreamBC> freeStream = std::make_shared<FreeStreamBC>(gamma);
+    std::vector<std::shared_ptr<BoundaryCondition>> bc{freeStream, freeStream, freeStream, outlet};
 
     // Initialize the state mesh
     double rhoi = rho0;
     double rhoui = rho0*M*a0*std::cos(alpha);
     double rhovi = rho0*M*a0*std::sin(alpha);
-    double rhoEi = p0/(gamma-1) + 0.5*rho0*M*M*a0*a0;
+    double rhoEi = p0/(gamma-1); // + 0.5*rho0*M*M*a0*a0;
 
     StateMesh U(mesh, bc, 4, p);
-    U.state(0).fill(rho0);
-    U.state(1).fill(rho0*M*a0*std::cos(alpha));
-    U.state(2).fill(rho0*M*a0*std::sin(alpha));
-    U.state(3).fill(p0/(gamma-1) + 0.5*rho0*M*M*a0*a0);
+    U.state(0).fill(rhoi);
+    U.state(1).fill(rhoui);
+    U.state(2).fill(rhovi);
+    U.state(3).fill(rhoEi);
 
     // Solver
     std::shared_ptr<FVFlux> flux;
@@ -119,7 +118,7 @@ int main() {
     else flux = std::make_shared<HLLEFlux>(gamma);
 
     std::shared_ptr<Residual> residual = std::make_shared<FEAdvection>(flux);
-    std::cout << residual->computeResidual(U) << std::endl;
+    //std::cout << residual->computeResidual(U) << std::endl;
 
     // // int FVOrder;
     // // do{
@@ -179,17 +178,8 @@ int main() {
 
         solver->solve(U);
         std::vector<Eigen::MatrixXd> results = solver->getResult(); // size = 1 if steady, more than 1 if unsteady
-        for (auto& Ui: results){
-            Ui.row(0).array() -= rhoi;
-            Ui.row(1).array() -= rhoui;
-            Ui.row(2).array() -= rhovi;
-            Ui.row(3).array() -= rhoEi;
-        }
-        std::cout << results[0] << std::endl << std::endl;
-        std::cout << results[1] << std::endl << std::endl;
-        std::cout << results[2] << std::endl << std::endl;
-        
-        // std::vector<double> l1norm = solver->getNorm();
+        std::vector<double> l1norm = solver->getNorm();
+        std::cout << "Converged after " << l1norm.size()-1 << " iterations." << std::endl;
 
         // std::vector<std::size_t> iter;
         // if (steadyState == 1) iter = {0};
