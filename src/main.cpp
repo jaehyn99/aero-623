@@ -59,7 +59,7 @@ int main() {
         std::transform(meshName.begin(), meshName.end(), meshName.begin(), [](unsigned char c){ return std::tolower(c); });
     } while (meshName != "test" && meshName != "coarse" && meshName != "fine" && meshName != "finer" && meshName != "finest");
 
-    std::size_t p = 0; // Lagrange order for solution approx
+    std::size_t p = 1; // Lagrange order for solution approx
     std::size_t q = 1; // Lagrange order for geometry approx
     // do{
     //     std::cout << "Enter the Lagrange polynomial order for solution approximation (p = 0, 1, 2, or 3): ";
@@ -90,9 +90,9 @@ int main() {
     std::shared_ptr<InletOutletBC> inlet = std::make_shared<InletOutletBC>(rho0, a0, alpha, pout, gamma);
     std::shared_ptr<BoundaryCondition> wall = std::make_shared<InviscidWallBC>(gamma);
     std::shared_ptr<BoundaryCondition> outlet = std::make_shared<OutletBC>(pout, gamma);
-    // std::vector<std::shared_ptr<BoundaryCondition>> bc{wall, inlet, wall, outlet};
-    std::shared_ptr<FreeStreamBC> freeStream = std::make_shared<FreeStreamBC>(gamma);
-    std::vector<std::shared_ptr<BoundaryCondition>> bc{freeStream, freeStream, freeStream, outlet};
+    std::vector<std::shared_ptr<BoundaryCondition>> bc{wall, inlet, wall, outlet};
+    // std::shared_ptr<FreeStreamBC> freeStream = std::make_shared<FreeStreamBC>(gamma);
+    // std::vector<std::shared_ptr<BoundaryCondition>> bc{freeStream, inlet, freeStream, freeStream};
 
     // Initialize the state mesh
     double rhoi = rho0;
@@ -118,7 +118,7 @@ int main() {
     else flux = std::make_shared<HLLEFlux>(gamma);
 
     std::shared_ptr<Residual> residual = std::make_shared<FEAdvection>(flux);
-    //std::cout << residual->computeResidual(U) << std::endl;
+    std::cout << residual->computeResidual(U) << std::endl;
 
     // // int FVOrder;
     // // do{

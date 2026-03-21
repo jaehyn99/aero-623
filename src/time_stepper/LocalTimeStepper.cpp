@@ -20,7 +20,6 @@ static double speedOfSound(const Eigen::Vector4d& U, double gamma){
 Eigen::ArrayXd LocalTimeStepper::dt(const StateMesh& u) const noexcept{
     auto mesh = u.mesh();
     int Np = u.Np();
-    std::vector<std::string> bcNames;
 
     // Computes the wave speed on each edge
     Eigen::ArrayXd sFace(mesh->numFaces());
@@ -38,14 +37,12 @@ Eigen::ArrayXd LocalTimeStepper::dt(const StateMesh& u) const noexcept{
 
         double cL = speedOfSound(ue, _gamma);
         if (face.isBoundaryFace()){
-            std::size_t boundaryID;
-            auto it = std::find(bcNames.cbegin(), bcNames.cend(), face.title());
-            if (it == bcNames.cend()){
-                // New boundary, not yet registered in bcNames;
-                bcNames.push_back(face.title());
-                boundaryID = bcNames.size()-1;
-            } else boundaryID = it - bcNames.cbegin();
-            Eigen::Vector4d Ub = u.bc(boundaryID)->computeBoundaryState(ue, normal); // last entry is speed of sound, not energy
+            std::shared_ptr<BoundaryCondition> bc;
+            if (face.title() == "Curve1") bc = u.bc(0);
+            else if (face.title() == "Curve3") bc = u.bc(1);
+            else if (face.title() == "Curve5") bc = u.bc(2);
+            else bc = u.bc(3);
+            Eigen::Vector4d Ub = bc->computeBoundaryState(ue, normal); // last entry is speed of sound, not energy
             sFace[i] = _flux->computeWaveSpeed(ue, Ub, normal, cL, Ub[3]);
         } else{
             Eigen::Index ne = face.elemID(1);

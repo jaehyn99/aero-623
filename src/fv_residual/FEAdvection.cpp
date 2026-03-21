@@ -12,6 +12,11 @@
 #include <iostream>
 
 //#define MONITOR
+#ifdef MONITOR
+#include "FreeStreamBC.h"
+#include "InviscidWallBC.h"
+#include "OutletBC.h"
+#endif
 
 static Eigen::Matrix<double,4,2> physicalFlux(const Eigen::Vector4d& U, double gamma)
 {
@@ -40,9 +45,7 @@ Eigen::MatrixXd FEAdvection::computeResidual(const StateMesh& u) const{
     auto mesh = u.mesh();
     Eigen::MatrixXd residual = Eigen::MatrixXd::Zero(u.stateCount(), u.cellCount()*u.Np());
     if (_flux){
-        std::vector<std::string> bcNames; // to keep track of boundary conditions
         const ReferenceElement& ref = mesh->reference();
-
         std::size_t p = u.p();
         std::size_t Np = u.Np();
         Lagrange2DBasisFunctions PhiBasis(p);
@@ -108,16 +111,15 @@ Eigen::MatrixXd FEAdvection::computeResidual(const StateMesh& u) const{
 
                     if (face.isBoundaryFace()){
                         // Boundary edge, use boundary condition to compute flux
-                        auto it = std::find(bcNames.cbegin(), bcNames.cend(), face.title());
-                        std::size_t boundaryID;
-                        if (it == bcNames.cend()){
-                            bcNames.push_back(face.title());
-                            boundaryID = bcNames.size() - 1;
-                        } else boundaryID = it - bcNames.cbegin();
 #ifdef MONITOR
-                        std::cout << "\t\tThis is a boundary edge on " << face.title() << "." << std::endl;
+                        std::cout << "\t\tThis is a boundary edge on " << face.title() << ". ";
 #endif
-                        auto bc = u.bc(boundaryID);
+                        std::shared_ptr<BoundaryCondition> bc;
+                        if (face.title() == "Curve1") bc = u.bc(0);
+                        else if (face.title() == "Curve3") bc = u.bc(1);
+                        else if (face.title() == "Curve5") bc = u.bc(2);
+                        else bc = u.bc(3);
+
                         // Transient cases, these lines do nothing if running in steady-state
                         if (auto inlet = dynamic_cast<InletBC*>(bc.get())){
                             double y0 = mesh->node(face.pointID(0))[1];
@@ -128,6 +130,14 @@ Eigen::MatrixXd FEAdvection::computeResidual(const StateMesh& u) const{
                             double y1 = mesh->node(face.pointID(1))[1];
                             inlet->setTransientRho((y1+y0)/2);                       
                         }
+#ifdef MONITOR
+                        if (dynamic_cast<FreeStreamBC*>(bc.get())) std::cout << "Freestream BC." << std::endl;
+                        else if (dynamic_cast<InletBC*>(bc.get())) std::cout << "Inlet BC." << std::endl;
+                        else if (dynamic_cast<InletOutletBC*>(bc.get())) std::cout << "Inlet-outlet BC." << std::endl;
+                        else if (dynamic_cast<InviscidWallBC*>(bc.get())) std::cout << "Inviscid wall BC." << std::endl;
+                        else if (dynamic_cast<OutletBC*>(bc.get())) std::cout << "Outlet BC." << std::endl;
+                        else std::cout << "Unknown BC." << std::endl;
+#endif
 
                         Eigen::Vector4d integral = Eigen::Vector4d::Zero();
                         for (std::size_t nq = 0; nq < edgeNq; nq++){

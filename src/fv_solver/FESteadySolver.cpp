@@ -42,12 +42,11 @@ void FESteadySolver::solve(StateMesh& u) const{
         return R;
     };
 
-    double norm = std::max(1.0, func(0, u.matrix()).lpNorm<1>());
+    double norm = func(0, u.matrix()).lpNorm<1>();
     std::cout << norm << std::endl;
     _l1norm.push_back(norm); // the first L1-norm
     
-
-    bool isConverged = false;
+    bool isConverged = norm <= _tol;
     int iter = 0;
     while (!isConverged){
         Eigen::ArrayXd dt = _stepper->dt(u);
@@ -55,7 +54,7 @@ void FESteadySolver::solve(StateMesh& u) const{
         norm = func(0, u.matrix()).lpNorm<1>();
         std::cout << norm << std::endl;
         _l1norm.push_back(norm);
-        isConverged = norm/_l1norm.front() <= _tol;
+        isConverged = norm/_l1norm.front() <= _tol || norm <= _tol; // Either relative or absolute norm satisfies tolerance
         iter++;
         _result.emplace_back(u.matrix());
     }
